@@ -1,5 +1,6 @@
 #pragma once
 #include <fstream>
+#include <vector>
 
 class Experiment
 {
@@ -22,6 +23,14 @@ public:
 	int GetPREXTimesPos();
 
 	std::ifstream* RDataFile();
+	std::vector<double>& GetStimOn();
+	std::vector<double>& GetStimOff();
+	std::vector<double>& GetPREXTimes();
+
+private:
+
+	void SetNumericalParams();
+	void SetExpDataVectors();
 
 private:
 
@@ -41,5 +50,9 @@ private:
 	int TimesOnPos;
 	int TimesOffPos;
 	int PREXTimesPos;
+
+	std::vector<double> StimOn;
+	std::vector<double> StimOff;
+	std::vector<double> PREXTimes;
 
 };

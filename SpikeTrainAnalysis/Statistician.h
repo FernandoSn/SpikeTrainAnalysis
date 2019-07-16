@@ -15,7 +15,6 @@ private:
 	BrainRegion Reference;
 	BrainRegion Target;
 
-	std::vector<double> StimOn;
-	std::vector<double> StimOff;
-	std::vector<double> PREXTimes;
+	
+
 };
