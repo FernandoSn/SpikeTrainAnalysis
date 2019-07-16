@@ -7,14 +7,13 @@ class BrainRegion
 {
 public:
 
-	BrainRegion(std::string FileName, int Units);
+	BrainRegion(std::ifstream* DataFile, unsigned short UnitNumber, int SizePos, int TrainPos);
+	std::vector<std::vector<double>>& RUnits();
 
 private:
 
-	int GetUnitNumber(int Offset);
 	
 private:
 
 	std::vector<std::vector<double>> Units;
-	std::ifstream DataFile;
 };

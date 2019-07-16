@@ -1,19 +1,31 @@
 #include "BrainRegion.h"
 #include <string>
 
-BrainRegion::BrainRegion(std::string FileName,int Offset)
+BrainRegion::BrainRegion(std::ifstream* DataFile, unsigned short UnitNumber, int SizePos, int TrainPos)
 	:
-	DataFile(FileName, std::ios::binary)
+	Units(UnitNumber)
 {
-	Units.reserve(GetUnitNumber(Offset));
+	unsigned int SizeData; // var for getting each param out of the DataFile
+	char * SizeDataPtr = reinterpret_cast<char*>(&SizeData);
+	DataFile->seekg(SizePos, DataFile->beg);
+
+	for (auto i = Units.begin(), end = Units.end(); i<end ; ++i)
+	{
+		DataFile->read(SizeDataPtr, 4);
+		i->reserve(SizeData);
+	}
+
+	//double TrainData; // var for getting each param out of the DataFile
+	//char * TrainDataPtr = reinterpret_cast<char*>(&TrainData);
+	DataFile->seekg(TrainPos, DataFile->beg);
+
+	for (auto i = Units.begin(), end = Units.end(); i<end; ++i)
+	{
+		DataFile->read(reinterpret_cast<char*>(i->data()), i->capacity() * 8);
+	}
 }
 
-int BrainRegion::GetUnitNumber(int Offset)
+std::vector<std::vector<double>>& BrainRegion::RUnits()
 {
-	unsigned short UnitNumber;
-	DataFile.seekg(Offset, DataFile.beg);
-	char * dataPtr = reinterpret_cast<char*>(&UnitNumber);
-	DataFile.read(dataPtr, 2);
-
-	return UnitNumber;
+	return Units;
 }

@@ -21,12 +21,21 @@
     <ClCompile Include="BrainRegion.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Experiment.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Statistician.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="BrainRegion.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Experiment.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Statistician.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
