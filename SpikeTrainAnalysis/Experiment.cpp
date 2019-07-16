@@ -141,17 +141,17 @@ void Experiment::SetNumericalParams()
 
 void Experiment::SetExpDataVectors()
 {
-	StimOn.reserve(Stimuli * Magnitudes * Trials);
-	StimOff.reserve(Stimuli * Magnitudes * Trials);
-	PREXTimes.reserve(Stimuli * Magnitudes * Trials);
+	StimOn.resize(Stimuli * Magnitudes * Trials);
+	StimOff.resize(Stimuli * Magnitudes * Trials);
+	PREXTimes.resize(Stimuli * Magnitudes * Trials);
 
 
 	DataFile.seekg(TimesOnPos, DataFile.beg);
-	DataFile.read(reinterpret_cast<char*>(StimOn.data()), StimOn.capacity() * 8);
+	DataFile.read(reinterpret_cast<char*>(StimOn.data()), StimOn.size() * 8);
 
 	DataFile.seekg(TimesOffPos, DataFile.beg);
-	DataFile.read(reinterpret_cast<char*>(StimOff.data()), StimOff.capacity() * 8);
+	DataFile.read(reinterpret_cast<char*>(StimOff.data()), StimOff.size() * 8);
 
 	DataFile.seekg(PREXTimesPos, DataFile.beg);
-	DataFile.read(reinterpret_cast<char*>(PREXTimes.data()), PREXTimes.capacity() * 8);
+	DataFile.read(reinterpret_cast<char*>(PREXTimes.data()), PREXTimes.size() * 8);
 }

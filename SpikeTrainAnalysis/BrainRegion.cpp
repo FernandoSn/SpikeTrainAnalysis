@@ -12,7 +12,7 @@ BrainRegion::BrainRegion(std::ifstream* DataFile, unsigned short UnitNumber, int
 	for (auto i = Units.begin(), end = Units.end(); i<end ; ++i)
 	{
 		DataFile->read(SizeDataPtr, 4);
-		i->reserve(SizeData);
+		i->resize(SizeData);
 	}
 
 	//double TrainData; // var for getting each param out of the DataFile
@@ -21,7 +21,7 @@ BrainRegion::BrainRegion(std::ifstream* DataFile, unsigned short UnitNumber, int
 
 	for (auto i = Units.begin(), end = Units.end(); i<end; ++i)
 	{
-		DataFile->read(reinterpret_cast<char*>(i->data()), i->capacity() * 8);
+		DataFile->read(reinterpret_cast<char*>(i->data()), i->size() * 8);
 	}
 }
 
