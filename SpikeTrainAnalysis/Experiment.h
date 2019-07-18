@@ -7,6 +7,8 @@ class Experiment
 public:
 
 	Experiment(std::string FileName);
+	~Experiment();
+
 	unsigned short GetStimuli();
 	unsigned short GetMagnitudes();
 	unsigned short GetTrials();

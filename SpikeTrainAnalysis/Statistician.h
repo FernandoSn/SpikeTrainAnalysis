@@ -8,10 +8,13 @@ class Statistician
 public:
 
 	Statistician(std::string FileName);
+	Statistician(std::string FileName, double Interval);
 
 private:
 
-	void SetStimLockedSpikes(char RegionType);
+	void SetStimLockedSpikes();
+	void SetPREXLockedSpikes(double Interval);
+	void SpikeTrainCorrelation(const std::vector<double>& reference, const std::vector<double>& target, int BinSize, int epoch);
 
 private:
 

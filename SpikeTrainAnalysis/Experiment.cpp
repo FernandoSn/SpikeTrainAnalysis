@@ -1,4 +1,5 @@
 #include "Experiment.h"
+#include <iostream>
 
 Experiment::Experiment(std::string FileName)
 	:
@@ -6,6 +7,31 @@ Experiment::Experiment(std::string FileName)
 {
 	SetNumericalParams();
 	SetExpDataVectors();
+}
+
+Experiment::~Experiment()
+{
+	if (DataFile.bad())
+		std::cout << "bad";
+
+	else if (DataFile.eof())
+		std::cout << "eof";
+
+	else if (DataFile.fail())
+		std::cout << "other fail";
+
+	else if (DataFile.good())
+	{
+		std::cout << "Data file was closed successfully";
+		DataFile.close();
+	}
+
+	if (DataFile.rdstate() == (std::ios_base::failbit | std::ios_base::eofbit))
+	{
+		std::cout << "stream state is eofbit\n";
+	}
+
+	std::cin.get();
 }
 
 unsigned short Experiment::GetStimuli()
