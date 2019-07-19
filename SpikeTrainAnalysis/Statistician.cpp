@@ -206,10 +206,10 @@ void Statistician::SpikeTrainShuffle(const std::vector<double>& reference, std::
 
 		std::sort(target.begin(), target.end());
 
-		SpikeTrainCorr(reference,
+		/*SpikeTrainCorr(reference,
 			target,
 			std::vector<unsigned int> & Spikes,
-			unsigned int& Count);
+			unsigned int& Count);*/
 
 	}
 }
@@ -217,11 +217,29 @@ void Statistician::SpikeTrainShuffle(const std::vector<double>& reference, std::
 void Statistician::MasterSpikeCrossCorr()
 {
 
-	for (auto PREXOn = OdorEx.GetPREXTimes().begin(), end = OdorEx.GetPREXTimes().end();
-		PREXOn < end;
-		++PREXOn)
+	//Nested loops for running the whole analysis. There may be some improvement specially in the las loop if the data is parsed better from matlab.
+	//first loop might be implemented in a multithreading design.
 
-		//just to push
+	for (int Stimulus = 0; Stimulus < OdorEx.GetStimuli(); Stimulus++)
+	{
+		for (auto RefTrain = StimLockedSpikesRef.begin() + Stimulus * OdorEx.GetUnitsRef(),
+			endRT = RefTrain + OdorEx.GetUnitsRef();
+			RefTrain < endRT
+			; ++RefTrain)
+		{
+			for (auto TarTrain = StimLockedSpikesTar.begin() + Stimulus * OdorEx.GetUnitsTar(),
+				endTT = TarTrain + OdorEx.GetUnitsTar();
+				TarTrain < endTT
+				; ++TarTrain)
+			{
+				auto RefTrialTrain = RefTrain;
+				auto TarTrialTrain = TarTrain;
+
+				for (int Trial = 0; Trial < OdorEx.GetTrials(); 
+					RefTrialTrain += OdorEx.GetUnitsRef(), TarTrialTrain += OdorEx.GetUnitsTar(), Trial++)
+				{
+					if ((RefTrialTrain->size() != 0 && TarTrialTrain->size() != 0))
+					{
 
 
 
@@ -229,4 +247,12 @@ void Statistician::MasterSpikeCrossCorr()
 
 
 
+
+
+
+					}
+				}
+			}
+		}
+	}
 }

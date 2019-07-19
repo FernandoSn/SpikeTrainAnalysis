@@ -3,14 +3,31 @@
 #include <algorithm>
 #include <chrono>
 #include <random>
+#include <thread>
 
 
 int main()
 {
 	//Statistician ctor interval is in sec, binsize and epoch is in ms
 
+	unsigned int n = std::thread::hardware_concurrency();
+	std::cout << n << " concurrent threads are supported.\n";
 
-	std::vector<int> v{ 3, 1, 4, 1, 5, 9, 2, 6 };
+	std::vector<int> v2{ 3, 1, 4, 1, 5, 9, 2, 6 };
+	std::vector<int> v;
+
+	v.resize(v2.size());
+
+
+	v.erase(std::copy_if(v2.begin(),
+		v2.end(),
+		v.begin(),
+		[](double SpikeTime) {return SpikeTime == 9; }) //Lambda as predicate for the algorithm.
+		, v.end());
+
+	v.shrink_to_fit();
+
+
 	auto bounds = std::minmax_element(v.begin(), v.end());
 
 	std::random_device r;
