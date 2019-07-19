@@ -1,5 +1,6 @@
 #include "Statistician.h"
 #include <algorithm>
+#include <future>
 
 
 Statistician::Statistician(std::string FileName, int BinSize, int Epoch)
@@ -251,6 +252,82 @@ void Statistician::MasterSpikeCrossCorr()
 
 
 					}
+				}
+			}
+		}
+	}
+}
+
+void Statistician::InitInterns()
+{
+	//ThreadPool with n threads. n = number of odors.
+	std::vector<std::future<void>> ThreadPool(OdorEx.GetStimuli());
+
+	auto CurrentThread = ThreadPool.begin();
+	auto EndThread = ThreadPool.end();
+	
+	for (int Stimulus = 0; CurrentThread < EndThread; ++CurrentThread, Stimulus++)
+	{
+		*CurrentThread = std::async(std::launch::async, &Statistician::MasterSpikeCrossCorrWorker, this, Stimulus);
+	}
+
+	while (true)
+	{
+		for (CurrentThread = ThreadPool.begin(); CurrentThread < EndThread; ++CurrentThread)
+		{
+			if (CurrentThread->valid())
+				CurrentThread->get();
+		}
+	}
+}
+
+void Statistician::MasterSpikeCrossCorrWorker(int Stimulus)
+{
+
+
+	std::vector<unsigned int> SpikesCountCorr;
+	std::vector<unsigned int> SpikesCountShift;
+	std::vector<unsigned int> SpikesCountShuffle;
+	std::vector<unsigned int> SpikesCountJitter;
+
+	struct
+	{
+		unsigned int Corr;
+		unsigned int Jitter;
+		unsigned int Shift;
+		unsigned int Shuffle;
+	}Counts;
+
+
+	//Nested loops for running the whole analysis. There may be some improvement specially in the las loop if the data is parsed better from matlab.
+	for (auto RefTrain = StimLockedSpikesRef.begin() + Stimulus * OdorEx.GetUnitsRef(),
+		endRT = RefTrain + OdorEx.GetUnitsRef();
+		RefTrain < endRT
+		; ++RefTrain)
+	{
+		for (auto TarTrain = StimLockedSpikesTar.begin() + Stimulus * OdorEx.GetUnitsTar(),
+			endTT = TarTrain + OdorEx.GetUnitsTar();
+			TarTrain < endTT
+			; ++TarTrain)
+		{
+			auto RefTrialTrain = RefTrain;
+			auto TarTrialTrain = TarTrain;
+
+			for (int Trial = 0; Trial < OdorEx.GetTrials();
+				RefTrialTrain += OdorEx.GetUnitsRef(), TarTrialTrain += OdorEx.GetUnitsTar(), Trial++)
+			{
+				if ((RefTrialTrain->size() != 0 && TarTrialTrain->size() != 0))
+				{
+
+					//SpikeTrainCorr(*RefTrialTrain, *TarTrialTrain, std::vector<unsigned int> & Spikes, unsigned int& Count)
+
+
+
+
+
+
+
+
 				}
 			}
 		}

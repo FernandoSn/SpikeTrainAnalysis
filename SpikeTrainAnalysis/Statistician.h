@@ -20,6 +20,8 @@ private:
 	void SpikeTrainShift();
 	void SpikeTrainShuffle(const std::vector<double>& reference, std::vector<double> target);
 	void MasterSpikeCrossCorr();
+	void InitInterns();
+	void MasterSpikeCrossCorrWorker(int Stimulus);
 
 private:
 
