@@ -1,26 +1,57 @@
 #include "Statistician.h"
 #include <algorithm>
 
-Statistician::Statistician(std::string FileName)
+
+Statistician::Statistician(std::string FileName, int BinSize, int Epoch)
 	:
+	BinSize(BinSize),
+	Epoch(Epoch),
+	NoBins((Epoch / BinSize) * 2),
+	BinSizeSec(BinSize / 1000.0),
+	EpochSec(Epoch/1000.0),
+	SpikesCountCorr(NoBins),
+	SpikesCountShift(NoBins),
+	SpikesCountShuffle(NoBins),
+	SpikesCountJitter(NoBins),
 	OdorEx(FileName),
 	Reference(OdorEx.RDataFile(), OdorEx.GetUnitsRef(), OdorEx.GetRefSizePos(), OdorEx.GetRefTrainPos()),
 	Target(OdorEx.RDataFile(), OdorEx.GetUnitsTar(), OdorEx.GetTarSizePos(), OdorEx.GetTarTrainPos()),
-	StimLockedSpikesRef(OdorEx.GetStimuli() * OdorEx.GetMagnitudes() * OdorEx.GetTrials() * OdorEx.GetUnitsRef()),
-	StimLockedSpikesTar(OdorEx.GetStimuli() * OdorEx.GetMagnitudes() * OdorEx.GetTrials() * OdorEx.GetUnitsTar())
+	StimLockedSpikesRef((long long)OdorEx.GetStimuli() * (long long)OdorEx.GetMagnitudes() * (long long)OdorEx.GetTrials() * (long long)OdorEx.GetUnitsRef()),
+	StimLockedSpikesTar((long long)OdorEx.GetStimuli() * (long long)OdorEx.GetMagnitudes() * (long long)OdorEx.GetTrials() * (long long)OdorEx.GetUnitsTar()),
+	Generator(Rd())
 {
 	SetStimLockedSpikes();
+
+	Counts.Corr = 0;
+	Counts.Jitter = 0;
+	Counts.Shift = 0;
+	Counts.Shuffle = 0;
 }
 
-Statistician::Statistician(std::string FileName, double Interval)
+Statistician::Statistician(std::string FileName, double Interval, int BinSize, int Epoch)
 	:
+	BinSize(BinSize),
+	Epoch(Epoch),
+	NoBins((Epoch / BinSize) * 2),
+	BinSizeSec(BinSize / 1000.0),
+	EpochSec(Epoch / 1000.0),
+	SpikesCountCorr(NoBins),
+	SpikesCountShift(NoBins),
+	SpikesCountShuffle(NoBins),
+	SpikesCountJitter(NoBins),
 	OdorEx(FileName),
 	Reference(OdorEx.RDataFile(), OdorEx.GetUnitsRef(), OdorEx.GetRefSizePos(), OdorEx.GetRefTrainPos()),
 	Target(OdorEx.RDataFile(), OdorEx.GetUnitsTar(), OdorEx.GetTarSizePos(), OdorEx.GetTarTrainPos()),
-	StimLockedSpikesRef(OdorEx.GetStimuli() * OdorEx.GetMagnitudes() * OdorEx.GetTrials() * OdorEx.GetUnitsRef()),
-	StimLockedSpikesTar(OdorEx.GetStimuli() * OdorEx.GetMagnitudes() * OdorEx.GetTrials() * OdorEx.GetUnitsTar())
+	StimLockedSpikesRef((long long)OdorEx.GetStimuli() * (long long)OdorEx.GetMagnitudes() * (long long)OdorEx.GetTrials() * (long long)OdorEx.GetUnitsRef()),
+	StimLockedSpikesTar((long long)OdorEx.GetStimuli() * (long long)OdorEx.GetMagnitudes() * (long long)OdorEx.GetTrials() * (long long)OdorEx.GetUnitsTar()),
+	Generator(Rd())
 {
 	SetPREXLockedSpikes(Interval);
+
+	Counts.Corr = 0;
+	Counts.Jitter = 0;
+	Counts.Shift = 0;
+	Counts.Shuffle = 0;
 }
 
 void Statistician::SetStimLockedSpikes()
@@ -117,17 +148,83 @@ void Statistician::SetPREXLockedSpikes(double Interval)
 	}
 }
 
-void Statistician::SpikeTrainCorrelation(const std::vector<double>& reference, const std::vector<double>& target, int BinSize, int epoch)
+void Statistician::SpikeTrainCorr(const std::vector<double>& reference, const std::vector<double>& target, std::vector<unsigned int>& Spikes, unsigned int& Count)
+{
+	//Computes Correlations separated by bins;
+
+	double CurrentBinF;
+	double CurrentBinL;
+
+	for (const double& Spike : reference)
+	{
+		CurrentBinF = Spike - EpochSec; // Set the current bins for the lambda function.
+		CurrentBinL = CurrentBinF + BinSizeSec;
+
+		for (unsigned int& Bin : Spikes)
+		{
+			Bin += std::count_if(target.begin(), //std library stuff, very convenient and fast.
+				target.end(),
+				[&CurrentBinF, &CurrentBinL](double TargetSpike) 
+				{
+					return TargetSpike > CurrentBinF && TargetSpike <= CurrentBinL; 
+				}
+			);
+
+			CurrentBinF = CurrentBinL;
+			CurrentBinL = +BinSizeSec;
+		}
+	}
+	Count += reference.size();
+}
+
+void Statistician::SpikeTrainShuffle(const std::vector<double>& reference, std::vector<double> target)
 {
 
-	int NoBins = (epoch / BinSize) * 2;
-	double BinSizems = BinSize / 1000.0;
+	double TargetMin;
+	double TargetMax;
+	double TargetRandom;
 
-	for (auto& Spike : reference)
+	//Setting Pseudo Random Number Uniform Distribution
+	std::uniform_int_distribution<int> distribution(1, target.size() - 1);
+
+	for (int i = 0; i < Shuffles; i++)
 	{
+		
+		auto RandomIt = target.begin() + distribution(Generator);
 
-		//for
+		TargetMin = *target.begin();
+		TargetMax = *(target.end()-1);
+		TargetRandom = *RandomIt;
 
+		std::for_each(target.begin(), 
+			RandomIt,
+			[&TargetMax, &TargetMin, &TargetRandom](double& Spike) { Spike += (TargetMax + TargetMin - TargetRandom); });
+
+		std::for_each(RandomIt,
+			target.end(),
+			[&TargetMin, &TargetRandom](double& Spike) { Spike -= (TargetRandom - TargetMin); });
+
+		std::sort(target.begin(), target.end());
+
+		SpikeTrainCorr(reference,
+			target,
+			std::vector<unsigned int> & Spikes,
+			unsigned int& Count);
 
 	}
+}
+
+void Statistician::MasterSpikeCrossCorr()
+{
+
+	for (auto PREXOn = OdorEx.GetPREXTimes().begin(), end = OdorEx.GetPREXTimes().end();
+		PREXOn < end;
+		++PREXOn)
+
+
+
+
+
+
+
 }

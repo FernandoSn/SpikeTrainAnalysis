@@ -34,29 +34,29 @@ Experiment::~Experiment()
 	std::cin.get();
 }
 
-unsigned short Experiment::GetStimuli()
+int Experiment::GetStimuli()
 {
-	return Stimuli;
+	return (int)Stimuli;
 }
 
-unsigned short Experiment::GetMagnitudes()
+int Experiment::GetMagnitudes()
 {
-	return Magnitudes;
+	return (int)Magnitudes;
 }
 
-unsigned short Experiment::GetTrials()
+int Experiment::GetTrials()
 {
-	return Trials;
+	return (int)Trials;
 }
 
-unsigned short Experiment::GetUnitsRef()
+int Experiment::GetUnitsRef()
 {
-	return UnitsRef;
+	return (int)UnitsRef;
 }
 
-unsigned short Experiment::GetUnitsTar()
+int Experiment::GetUnitsTar()
 {
-	return UnitsTar;
+	return (int)UnitsTar;
 }
 
 int Experiment::GetRefSizePos()
@@ -167,17 +167,17 @@ void Experiment::SetNumericalParams()
 
 void Experiment::SetExpDataVectors()
 {
-	StimOn.resize(Stimuli * Magnitudes * Trials);
-	StimOff.resize(Stimuli * Magnitudes * Trials);
-	PREXTimes.resize(Stimuli * Magnitudes * Trials);
+	StimOn.resize((long long)Stimuli * (long long)Magnitudes * (long long)Trials);
+	StimOff.resize((long long)Stimuli * (long long)Magnitudes * (long long)Trials);
+	PREXTimes.resize((long long)Stimuli * (long long)Magnitudes * (long long)Trials);
 
 
 	DataFile.seekg(TimesOnPos, DataFile.beg);
-	DataFile.read(reinterpret_cast<char*>(StimOn.data()), StimOn.size() * 8);
+	DataFile.read(reinterpret_cast<char*>(StimOn.data()), (long long)StimOn.size() * 8L);
 
 	DataFile.seekg(TimesOffPos, DataFile.beg);
-	DataFile.read(reinterpret_cast<char*>(StimOff.data()), StimOff.size() * 8);
+	DataFile.read(reinterpret_cast<char*>(StimOff.data()), (long long)StimOff.size() * 8L);
 
 	DataFile.seekg(PREXTimesPos, DataFile.beg);
-	DataFile.read(reinterpret_cast<char*>(PREXTimes.data()), PREXTimes.size() * 8);
+	DataFile.read(reinterpret_cast<char*>(PREXTimes.data()), (long long)PREXTimes.size() * 8L);
 }

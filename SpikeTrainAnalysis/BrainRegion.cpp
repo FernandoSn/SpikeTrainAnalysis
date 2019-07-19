@@ -21,7 +21,7 @@ BrainRegion::BrainRegion(std::ifstream* DataFile, unsigned short UnitNumber, int
 
 	for (auto i = Units.begin(), end = Units.end(); i<end; ++i)
 	{
-		DataFile->read(reinterpret_cast<char*>(i->data()), i->size() * 8);
+		DataFile->read(reinterpret_cast<char*>(i->data()), (long long)i->size() * 8L);
 	}
 }
 

@@ -9,11 +9,11 @@ public:
 	Experiment(std::string FileName);
 	~Experiment();
 
-	unsigned short GetStimuli();
-	unsigned short GetMagnitudes();
-	unsigned short GetTrials();
-	unsigned short GetUnitsRef();
-	unsigned short GetUnitsTar();
+	int GetStimuli();
+	int GetMagnitudes();
+	int GetTrials();
+	int GetUnitsRef();
+	int GetUnitsTar();
 
 	int GetRefSizePos();
 	int GetRefTrainPos();
