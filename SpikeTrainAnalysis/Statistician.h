@@ -18,12 +18,13 @@ private:
 	void SetStimLockedSpikes();
 	void SetPREXLockedSpikes(double Interval);
 	void SpikeTrainCorr(const std::vector<double>& reference, const std::vector<double>& target, std::vector<unsigned int>& Spikes, unsigned int& Count);
-	void SpikeTrainJitter();
-	void SpikeTrainShift();
-	void SpikeTrainShuffle(const std::vector<double>& reference, std::vector<double> target, std::vector<unsigned int>& Spikes, unsigned int& Count);
+	void SpikeTrainJitter(const std::vector<double>& reference, std::vector<double> target, std::vector<std::vector<unsigned int>>& Spikes, unsigned int& Count);
+	void SpikeTrainShuffle(const std::vector<double>& reference, std::vector<double> target, std::vector<std::vector<unsigned int>>& Spikes, unsigned int& Count);
 	void MasterSpikeCrossCorr();
 	void InitInterns();
-	void MasterSpikeCrossCorrWorker(int Stimulus);
+	void MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, char ResamplingMethod);
+
+	//void SpikeTrainShift(); // I dont know if Im gonna implement shift, seems that is not very useful for my actual experiment.
 
 private:
 

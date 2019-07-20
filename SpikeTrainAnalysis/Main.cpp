@@ -8,6 +8,7 @@
 
 int main()
 {
+	//std::vector<unsigned int> asd(8,12);
 	//Statistician ctor interval is in sec, binsize and epoch is in ms
 
 	unsigned int n = std::thread::hardware_concurrency();

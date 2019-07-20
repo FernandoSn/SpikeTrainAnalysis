@@ -2,7 +2,12 @@
 #include <algorithm>
 #include <future>
 #include <iostream>
+#include <numeric>
+#include <cmath>
 
+
+constexpr char SHUFFLING = 0;
+constexpr char JITTERING = 1;
 
 Statistician::Statistician(std::string FileName, int BinSize, int Epoch)
 	:
@@ -161,7 +166,11 @@ void Statistician::SpikeTrainCorr(const std::vector<double>& reference, const st
 	Count += reference.size();
 }
 
-void Statistician::SpikeTrainShuffle(const std::vector<double>& reference, std::vector<double> target, std::vector<unsigned int>& Spikes, unsigned int& Count)
+void Statistician::SpikeTrainJitter(const std::vector<double>& reference, std::vector<double> target, std::vector<std::vector<unsigned int>>& Spikes, unsigned int& Count)
+{
+}
+
+void Statistician::SpikeTrainShuffle(const std::vector<double>& reference, std::vector<double> target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count)
 {
 
 	double TargetMin;
@@ -171,7 +180,7 @@ void Statistician::SpikeTrainShuffle(const std::vector<double>& reference, std::
 	//Setting Pseudo Random Number Uniform Distribution
 	std::uniform_int_distribution<int> distribution(1, target.size() - 1);
 
-	for (int i = 0; i < Shuffles; i++)
+	for (auto Spikes = SpikesMatrix.begin(), SMEnd = SpikesMatrix.end(); Spikes < SMEnd ; ++Spikes)
 	{
 		
 		auto RandomIt = target.begin() + distribution(Generator);
@@ -192,9 +201,8 @@ void Statistician::SpikeTrainShuffle(const std::vector<double>& reference, std::
 
 		SpikeTrainCorr(reference,
 			target,
-			Spikes,
+			*Spikes,
 			Count);
-
 	}
 }
 
@@ -206,12 +214,12 @@ void Statistician::MasterSpikeCrossCorr()
 
 	for (int Stimulus = 0; Stimulus < OdorEx.GetStimuli(); Stimulus++)
 	{
-		for (auto RefTrain = StimLockedSpikesRef.begin() + Stimulus * OdorEx.GetUnitsRef(),
+		for (auto RefTrain = StimLockedSpikesRef.cbegin() + Stimulus * OdorEx.GetUnitsRef(),
 			endRT = RefTrain + OdorEx.GetUnitsRef();
 			RefTrain < endRT
 			; ++RefTrain)
 		{
-			for (auto TarTrain = StimLockedSpikesTar.begin() + Stimulus * OdorEx.GetUnitsTar(),
+			for (auto TarTrain = StimLockedSpikesTar.cbegin() + Stimulus * OdorEx.GetUnitsTar(),
 				endTT = TarTrain + OdorEx.GetUnitsTar();
 				TarTrain < endTT
 				; ++TarTrain)
@@ -251,7 +259,7 @@ void Statistician::InitInterns()
 	
 	for (int Stimulus = 0; CurrentThread < EndThread; ++CurrentThread, Stimulus++)
 	{
-		*CurrentThread = std::async(std::launch::async, &Statistician::MasterSpikeCrossCorrWorker, this, Stimulus);
+		*CurrentThread = std::async(std::launch::async, &Statistician::MasterSpikeCrossCorrWorker, this, Stimulus, );
 	}
 
 	while (true)
@@ -264,79 +272,151 @@ void Statistician::InitInterns()
 	}
 }
 
-void Statistician::MasterSpikeCrossCorrWorker(int Stimulus)
+void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, char ResamplingMethod)
 {
 
-	mu.lock();
+	//NOTE: Im not convienced that STD matrices are the best way to deal with the problem. They are well allocated but anyway they may impact the performance,
+	//STD problem may be solved with the use of other statistics instead of Z test (Fujisawa, 2008).
+	//it is a posibility to implement fujisawa statistics but I need to try them first on MATLAB.
 
+
+	mu.lock();
+	//Locked code to access common memory between threads.
 	std::cout << "adq vars valve :" << Stimulus << std::endl;
 
 	int UnitsRef = OdorEx.GetUnitsRef();
 	int UnitsTar = OdorEx.GetUnitsTar();
 	int Trials = OdorEx.GetTrials();
-	auto SLSRB = StimLockedSpikesRef.begin();
-	auto SLSTB = StimLockedSpikesTar.begin();
+	auto SLSRB = StimLockedSpikesRef.cbegin();
+	auto SLSTB = StimLockedSpikesTar.cbegin();
 
 	std::cout << "end adq vars valve :" << Stimulus << std::endl;
 
+	//Put this thread to sleep just for debugging puposes.
 	std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-
 
 	mu.unlock();
 
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	std::vector<unsigned int> SpikesCountCorr(NoBins); //Main raw correlation Vector
+	std::vector<double> SpikesPCorr(NoBins); // Vector for probabilities and Z scores. P stands for probability.
 
-	std::vector<unsigned int> SpikesCountCorr(NoBins);
-	std::vector<unsigned int> SpikesCountShift(NoBins);
-	std::vector<unsigned int> SpikesCountShuffle(NoBins);
-	std::vector<unsigned int> SpikesCountJitter(NoBins);
+	std::vector<std::vector<unsigned int>> SpikesCountResampled(ResampledSets,std::vector<unsigned int>(NoBins)); // Good! Resampling Matrix, this is annoying but necessary to obtain the standard deviation.
+	std::vector<unsigned int> SpikesSTDCount(ResampledSets);
+	std::vector<double> SpikesSTDResampled(NoBins); // STD vector. STD is obtained across ResampledSets of mean trials.
+	std::vector<double> SpikesPResampled(NoBins); // Vector for probabilities scores.
 
-	std::vector<double> SpikesPCorr(NoBins);
-	std::vector<double> SpikesPShift(NoBins);
-	std::vector<double> SpikesPShuffle(NoBins);
-	std::vector<double> SpikesPJitter(NoBins);
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-	struct
-	{
-		unsigned int Corr = 0;
-		unsigned int Jitter = 0;
-		unsigned int Shift = 0;
-		unsigned int Shuffle = 0;
-	}Counts;
+
 
 	//Nested loops for running the whole analysis. There may be some improvement specially in the las loop if the data is parsed better from matlab.
+
+	//Stimulus locked reference spike train loop
 	for (auto RefTrain = SLSRB + Stimulus * UnitsRef,
 		endRT = RefTrain + UnitsRef;
 		RefTrain < endRT
 		; ++RefTrain)
 	{
+		//Stimulus locked target spike train loop
 		for (auto TarTrain = SLSTB + Stimulus * UnitsTar,
 			endTT = TarTrain + UnitsTar;
 			TarTrain < endTT
 			; ++TarTrain)
 		{
-			auto RefTrialTrain = RefTrain;
-			auto TarTrialTrain = TarTrain;
+			auto RefTrialTrain = RefTrain; //this is the downside of the way I parse the matlab data.
+			auto TarTrialTrain = TarTrain; //Aux vars to prevent modification of original vars.
+			unsigned int CountCorr = 0;
+			unsigned int CountRes = 0;
+			bool GoodResampling = true;
 
+			//Trial Loop/////////////////////////////////////////////////////////////////////////
 			for (int Trial = 0; Trial < Trials;
 				RefTrialTrain += UnitsRef, TarTrialTrain += UnitsTar, Trial++)
 			{
-				if ((RefTrialTrain->size() != 0 && TarTrialTrain->size() != 0))
+				if ((RefTrialTrain->size() != 0 && TarTrialTrain->size() != 0)) //Check if trains are not empty.
 				{
+					SpikeTrainCorr(*RefTrialTrain, *TarTrialTrain, SpikesCountCorr, CountCorr); //Compute Corr.
 
-					SpikeTrainCorr(*RefTrialTrain, *TarTrialTrain, SpikesCountCorr, Counts.Corr);
+					switch (ResamplingMethod)
+					{
 
-					SpikeTrainShuffle(*RefTrialTrain, *TarTrialTrain, SpikesCountShuffle, Counts.Shuffle);
+					case SHUFFLING:
+						SpikeTrainShuffle(*RefTrialTrain, *TarTrialTrain, SpikesCountResampled, CountRes); //Compute Corr shuffling method.
+						break;
 
+					case JITTERING:
+						SpikeTrainJitter(*RefTrialTrain, *TarTrialTrain, SpikesCountResampled, CountRes); //Compute Corr Jittering method.
+						break;
+
+					default:
+						SpikeTrainShuffle(*RefTrialTrain, *TarTrialTrain, SpikesCountResampled, CountRes);
+						break;
+					}
 				}
 			}
+			/////////////////////////////////////////////////////////////////////////////////////
+
+
+			
+			//Mean and STD of the matrix and vectors of the choosen resampling method.///////////
+			CountRes /= ResampledSets;
+			for (int Bin = 0; Bin < NoBins; Bin++)
+			{
+				auto STDCount = SpikesSTDCount.begin();
+				auto STDCountEnd = SpikesSTDCount.end();
+
+				for (auto BinVec = SpikesCountResampled.cbegin(), BinVecEnd = SpikesCountResampled.cend();
+					BinVec < BinVecEnd;
+					++BinVec, ++STDCount)
+				{
+					*STDCount = *(BinVec->begin() + Bin);
+				}
+
+				//Math for the params that are needed by the Z Test
+				double BinMean = (double)std::accumulate(STDCount, STDCountEnd, 0) / (double)ResampledSets;
+
+				//Necesary check for unpopulated resampled correlograms. false positives can be assumed if this is not checked, although this is not the best way to code it. Bad design.
+				if (BinMean == 0)
+					GoodResampling = false; break;
+
+				double BinVariance = 0.0;
+
+				for (STDCount = SpikesSTDCount.begin(); STDCount < STDCountEnd; ++STDCount)
+				{
+					BinVariance += ((double)(*STDCount) - BinMean) * ((double)(*STDCount) - BinMean);
+				}
+				BinVariance /= (double)ResampledSets; // this is Variance over N. Matlab uses Bessels correction to compute STD.
+
+				*(SpikesSTDResampled.begin() + Bin) = std::sqrt(BinVariance) / (double)CountRes; // Stand deviation to my STD.
+				*(SpikesPResampled.begin() + Bin) = BinMean / (double)CountRes;
+
+				STDCount = SpikesSTDCount.begin(); // Reseting the iterator of the vector.
+			}
+			/////////////////////////////////////////////////////////////////////////////////////
+
+
+			if (GoodResampling && CountCorr != 0)
+			{
+				
+				double MeanSTD = (double)std::accumulate(SpikesSTDResampled.begin(), SpikesSTDResampled.end(), 0.0) / (double)SpikesSTDResampled.size();
+				
+				//Fill the Probability Vector.
+				std::transform(SpikesCountCorr.begin(), SpikesCountCorr.end(),
+					SpikesPCorr.begin(),
+					[CountCorr](unsigned int Bin) -> double { return (double)Bin / (double)CountCorr; });
+
+
+				std::transform(SpikesPCorr.begin(), SpikesPCorr.begin(), SpikesPResampled.begin(), SpikesPCorr.begin(),
+					[MeanSTD](double& PBin, double& MeanBin) {return (PBin - MeanBin) / MeanSTD; });
 
 
 
 
+				//CHECAR TODOS LOS FOR EACH Y TRANSFORMS A LA DE YA!!!!!
 
 
-
-
+			}
 		}
 	}
 }
