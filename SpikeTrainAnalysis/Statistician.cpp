@@ -1,6 +1,7 @@
 #include "Statistician.h"
 #include <algorithm>
 #include <future>
+#include <iostream>
 
 
 Statistician::Statistician(std::string FileName, int BinSize, int Epoch)
@@ -9,11 +10,7 @@ Statistician::Statistician(std::string FileName, int BinSize, int Epoch)
 	Epoch(Epoch),
 	NoBins((Epoch / BinSize) * 2),
 	BinSizeSec(BinSize / 1000.0),
-	EpochSec(Epoch/1000.0),
-	SpikesCountCorr(NoBins),
-	SpikesCountShift(NoBins),
-	SpikesCountShuffle(NoBins),
-	SpikesCountJitter(NoBins),
+	EpochSec(Epoch / 1000.0),
 	OdorEx(FileName),
 	Reference(OdorEx.RDataFile(), OdorEx.GetUnitsRef(), OdorEx.GetRefSizePos(), OdorEx.GetRefTrainPos()),
 	Target(OdorEx.RDataFile(), OdorEx.GetUnitsTar(), OdorEx.GetTarSizePos(), OdorEx.GetTarTrainPos()),
@@ -22,11 +19,6 @@ Statistician::Statistician(std::string FileName, int BinSize, int Epoch)
 	Generator(Rd())
 {
 	SetStimLockedSpikes();
-
-	Counts.Corr = 0;
-	Counts.Jitter = 0;
-	Counts.Shift = 0;
-	Counts.Shuffle = 0;
 }
 
 Statistician::Statistician(std::string FileName, double Interval, int BinSize, int Epoch)
@@ -36,10 +28,6 @@ Statistician::Statistician(std::string FileName, double Interval, int BinSize, i
 	NoBins((Epoch / BinSize) * 2),
 	BinSizeSec(BinSize / 1000.0),
 	EpochSec(Epoch / 1000.0),
-	SpikesCountCorr(NoBins),
-	SpikesCountShift(NoBins),
-	SpikesCountShuffle(NoBins),
-	SpikesCountJitter(NoBins),
 	OdorEx(FileName),
 	Reference(OdorEx.RDataFile(), OdorEx.GetUnitsRef(), OdorEx.GetRefSizePos(), OdorEx.GetRefTrainPos()),
 	Target(OdorEx.RDataFile(), OdorEx.GetUnitsTar(), OdorEx.GetTarSizePos(), OdorEx.GetTarTrainPos()),
@@ -48,11 +36,6 @@ Statistician::Statistician(std::string FileName, double Interval, int BinSize, i
 	Generator(Rd())
 {
 	SetPREXLockedSpikes(Interval);
-
-	Counts.Corr = 0;
-	Counts.Jitter = 0;
-	Counts.Shift = 0;
-	Counts.Shuffle = 0;
 }
 
 void Statistician::SetStimLockedSpikes()
@@ -178,7 +161,7 @@ void Statistician::SpikeTrainCorr(const std::vector<double>& reference, const st
 	Count += reference.size();
 }
 
-void Statistician::SpikeTrainShuffle(const std::vector<double>& reference, std::vector<double> target)
+void Statistician::SpikeTrainShuffle(const std::vector<double>& reference, std::vector<double> target, std::vector<unsigned int>& Spikes, unsigned int& Count)
 {
 
 	double TargetMin;
@@ -207,10 +190,10 @@ void Statistician::SpikeTrainShuffle(const std::vector<double>& reference, std::
 
 		std::sort(target.begin(), target.end());
 
-		/*SpikeTrainCorr(reference,
+		SpikeTrainCorr(reference,
 			target,
-			std::vector<unsigned int> & Spikes,
-			unsigned int& Count);*/
+			Spikes,
+			Count);
 
 	}
 }
@@ -284,52 +267,76 @@ void Statistician::InitInterns()
 void Statistician::MasterSpikeCrossCorrWorker(int Stimulus)
 {
 
+	mu.lock();
 
-	std::vector<unsigned int> SpikesCountCorr;
-	std::vector<unsigned int> SpikesCountShift;
-	std::vector<unsigned int> SpikesCountShuffle;
-	std::vector<unsigned int> SpikesCountJitter;
+	std::cout << "adq vars valve :" << Stimulus << std::endl;
+
+	int UnitsRef = OdorEx.GetUnitsRef();
+	int UnitsTar = OdorEx.GetUnitsTar();
+	int Trials = OdorEx.GetTrials();
+	auto SLSRB = StimLockedSpikesRef.begin();
+	auto SLSTB = StimLockedSpikesTar.begin();
+
+	std::cout << "end adq vars valve :" << Stimulus << std::endl;
+
+	std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+
+	mu.unlock();
+
+
+	std::vector<unsigned int> SpikesCountCorr(NoBins);
+	std::vector<unsigned int> SpikesCountShift(NoBins);
+	std::vector<unsigned int> SpikesCountShuffle(NoBins);
+	std::vector<unsigned int> SpikesCountJitter(NoBins);
+
+	std::vector<double> SpikesPCorr(NoBins);
+	std::vector<double> SpikesPShift(NoBins);
+	std::vector<double> SpikesPShuffle(NoBins);
+	std::vector<double> SpikesPJitter(NoBins);
 
 	struct
 	{
-		unsigned int Corr;
-		unsigned int Jitter;
-		unsigned int Shift;
-		unsigned int Shuffle;
+		unsigned int Corr = 0;
+		unsigned int Jitter = 0;
+		unsigned int Shift = 0;
+		unsigned int Shuffle = 0;
 	}Counts;
 
-
 	//Nested loops for running the whole analysis. There may be some improvement specially in the las loop if the data is parsed better from matlab.
-	for (auto RefTrain = StimLockedSpikesRef.begin() + Stimulus * OdorEx.GetUnitsRef(),
-		endRT = RefTrain + OdorEx.GetUnitsRef();
+	for (auto RefTrain = SLSRB + Stimulus * UnitsRef,
+		endRT = RefTrain + UnitsRef;
 		RefTrain < endRT
 		; ++RefTrain)
 	{
-		for (auto TarTrain = StimLockedSpikesTar.begin() + Stimulus * OdorEx.GetUnitsTar(),
-			endTT = TarTrain + OdorEx.GetUnitsTar();
+		for (auto TarTrain = SLSTB + Stimulus * UnitsTar,
+			endTT = TarTrain + UnitsTar;
 			TarTrain < endTT
 			; ++TarTrain)
 		{
 			auto RefTrialTrain = RefTrain;
 			auto TarTrialTrain = TarTrain;
 
-			for (int Trial = 0; Trial < OdorEx.GetTrials();
-				RefTrialTrain += OdorEx.GetUnitsRef(), TarTrialTrain += OdorEx.GetUnitsTar(), Trial++)
+			for (int Trial = 0; Trial < Trials;
+				RefTrialTrain += UnitsRef, TarTrialTrain += UnitsTar, Trial++)
 			{
 				if ((RefTrialTrain->size() != 0 && TarTrialTrain->size() != 0))
 				{
 
-					//SpikeTrainCorr(*RefTrialTrain, *TarTrialTrain, std::vector<unsigned int> & Spikes, unsigned int& Count)
+					SpikeTrainCorr(*RefTrialTrain, *TarTrialTrain, SpikesCountCorr, Counts.Corr);
 
-
-
-
-
-
-
+					SpikeTrainShuffle(*RefTrialTrain, *TarTrialTrain, SpikesCountShuffle, Counts.Shuffle);
 
 				}
 			}
+
+
+
+
+
+
+
+
 		}
 	}
 }

@@ -3,6 +3,8 @@
 #include "Experiment.h"
 #include "BrainRegion.h"
 #include <random>
+#include <atomic>
+#include <mutex>
 
 class Statistician
 {
@@ -18,7 +20,7 @@ private:
 	void SpikeTrainCorr(const std::vector<double>& reference, const std::vector<double>& target, std::vector<unsigned int>& Spikes, unsigned int& Count);
 	void SpikeTrainJitter();
 	void SpikeTrainShift();
-	void SpikeTrainShuffle(const std::vector<double>& reference, std::vector<double> target);
+	void SpikeTrainShuffle(const std::vector<double>& reference, std::vector<double> target, std::vector<unsigned int>& Spikes, unsigned int& Count);
 	void MasterSpikeCrossCorr();
 	void InitInterns();
 	void MasterSpikeCrossCorrWorker(int Stimulus);
@@ -41,20 +43,9 @@ private:
 	static constexpr int Shifts = 30;
 	static constexpr int Jitters = 1000;
 
-	struct
-	{
-		unsigned int Corr;
-		unsigned int Jitter;
-		unsigned int Shift;
-		unsigned int Shuffle;
-	}Counts;
-
-	std::vector<unsigned int> SpikesCountCorr;
-	std::vector<unsigned int> SpikesCountShift;
-	std::vector<unsigned int> SpikesCountShuffle;
-	std::vector<unsigned int> SpikesCountJitter;
-
 	std::random_device Rd;
 	std::default_random_engine Generator;
+
+	std::mutex mu;
 
 };
