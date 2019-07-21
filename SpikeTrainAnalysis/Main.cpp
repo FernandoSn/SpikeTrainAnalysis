@@ -15,10 +15,13 @@ int main()
 	std::cout << n << " concurrent threads are supported.\n";
 
 	std::vector<int> v2{ 3, 1, 4, 1, 5, 9, 2, 6 };
-	std::vector<int> v;
+	std::vector<int> v{1, 1, 1, 1, 1, 1, 1, 1};
 
-	v.resize(v2.size());
+	v.resize(v2.size()+1);
 
+
+	//auto ty = std::for_each(v2.begin(), v2.end(), [](auto& n) { n *= 2; });
+	std::transform(v2.begin(), v2.end(), v.begin(), v2.begin(),[](auto& n, auto& m) { return n + m; });
 
 	v.erase(std::copy_if(v2.begin(),
 		v2.end(),
@@ -36,7 +39,6 @@ int main()
 	std::uniform_int_distribution<int> distribution(0, 0);
 	int asd = distribution(generator);
 	double rrrr = 99999999.2;
-	auto ty = std::for_each(v.begin(), v.begin(), [](auto& n) { n *= 2; });
 	//auto ff = *ty;
 	sizeof(distribution);
 

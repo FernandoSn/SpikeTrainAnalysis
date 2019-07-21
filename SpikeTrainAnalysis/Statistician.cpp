@@ -151,7 +151,7 @@ void Statistician::SpikeTrainCorr(const std::vector<double>& reference, const st
 
 		for (unsigned int& Bin : Spikes)
 		{
-			Bin += std::count_if(target.begin(), //std library stuff, very convenient and fast.
+			Bin += (unsigned int)std::count_if(target.begin(), //std library stuff, very convenient and fast.
 				target.end(),
 				[&CurrentBinF, &CurrentBinL](double TargetSpike) 
 				{
@@ -163,11 +163,29 @@ void Statistician::SpikeTrainCorr(const std::vector<double>& reference, const st
 			CurrentBinL = +BinSizeSec;
 		}
 	}
-	Count += reference.size();
+	Count += (unsigned int)reference.size();
 }
 
-void Statistician::SpikeTrainJitter(const std::vector<double>& reference, std::vector<double> target, std::vector<std::vector<unsigned int>>& Spikes, unsigned int& Count)
+void Statistician::SpikeTrainJitter(const std::vector<double>& reference, std::vector<double> target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count)
 {
+
+	//Setting Pseudo Random Number Uniform Distribution for jittering [-5ms, 5ms] (Fujisawa, 2018)
+	std::uniform_real_distribution<double> distribution(-0.005, 0.005);
+
+	for (auto Spikes = SpikesMatrix.begin(), SMEnd = SpikesMatrix.end(); Spikes < SMEnd; ++Spikes)
+	{
+
+		double Jitter = distribution(Generator);
+
+		std::for_each(target.begin(),
+			target.end(),
+			[&Jitter](double& Spike) { Spike += Jitter; });
+
+		SpikeTrainCorr(reference,
+			target,
+			*Spikes,
+			Count);
+	}
 }
 
 void Statistician::SpikeTrainShuffle(const std::vector<double>& reference, std::vector<double> target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count)
@@ -178,7 +196,7 @@ void Statistician::SpikeTrainShuffle(const std::vector<double>& reference, std::
 	double TargetRandom;
 
 	//Setting Pseudo Random Number Uniform Distribution
-	std::uniform_int_distribution<int> distribution(1, target.size() - 1);
+	std::uniform_int_distribution<int> distribution(1, (int)target.size() - 1);
 
 	for (auto Spikes = SpikesMatrix.begin(), SMEnd = SpikesMatrix.end(); Spikes < SMEnd ; ++Spikes)
 	{
@@ -214,12 +232,12 @@ void Statistician::MasterSpikeCrossCorr()
 
 	for (int Stimulus = 0; Stimulus < OdorEx.GetStimuli(); Stimulus++)
 	{
-		for (auto RefTrain = StimLockedSpikesRef.cbegin() + Stimulus * OdorEx.GetUnitsRef(),
+		for (auto RefTrain = StimLockedSpikesRef.cbegin() + (long long)Stimulus * OdorEx.GetUnitsRef(),
 			endRT = RefTrain + OdorEx.GetUnitsRef();
 			RefTrain < endRT
 			; ++RefTrain)
 		{
-			for (auto TarTrain = StimLockedSpikesTar.cbegin() + Stimulus * OdorEx.GetUnitsTar(),
+			for (auto TarTrain = StimLockedSpikesTar.cbegin() + (long long)Stimulus * OdorEx.GetUnitsRef(),
 				endTT = TarTrain + OdorEx.GetUnitsTar();
 				TarTrain < endTT
 				; ++TarTrain)
@@ -249,7 +267,7 @@ void Statistician::MasterSpikeCrossCorr()
 	}
 }
 
-void Statistician::InitInterns()
+void Statistician::RunThreadPool()
 {
 	//ThreadPool with n threads. n = number of odors.
 	std::vector<std::future<void>> ThreadPool(OdorEx.GetStimuli());
@@ -259,7 +277,7 @@ void Statistician::InitInterns()
 	
 	for (int Stimulus = 0; CurrentThread < EndThread; ++CurrentThread, Stimulus++)
 	{
-		*CurrentThread = std::async(std::launch::async, &Statistician::MasterSpikeCrossCorrWorker, this, Stimulus, );
+		*CurrentThread = std::async(std::launch::async, &Statistician::MasterSpikeCrossCorrWorker, this, Stimulus, 10,10, 10);
 	}
 
 	while (true)
@@ -272,7 +290,7 @@ void Statistician::InitInterns()
 	}
 }
 
-void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, char ResamplingMethod)
+void Statistician::MasterSpikeCrossCorrWorker(long long Stimulus, int ResampledSets, char ResamplingMethod, double ZValue)
 {
 
 	//NOTE: Im not convienced that STD matrices are the best way to deal with the problem. They are well allocated but anyway they may impact the performance,
@@ -313,16 +331,18 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, c
 	//Nested loops for running the whole analysis. There may be some improvement specially in the las loop if the data is parsed better from matlab.
 
 	//Stimulus locked reference spike train loop
+	int ReferenceUnit = 1;
 	for (auto RefTrain = SLSRB + Stimulus * UnitsRef,
 		endRT = RefTrain + UnitsRef;
 		RefTrain < endRT
-		; ++RefTrain)
+		; ++RefTrain, ReferenceUnit++)
 	{
 		//Stimulus locked target spike train loop
+		int TargetUnit = 1;
 		for (auto TarTrain = SLSTB + Stimulus * UnitsTar,
 			endTT = TarTrain + UnitsTar;
 			TarTrain < endTT
-			; ++TarTrain)
+			; ++TarTrain, TargetUnit++)
 		{
 			auto RefTrialTrain = RefTrain; //this is the downside of the way I parse the matlab data.
 			auto TarTrialTrain = TarTrain; //Aux vars to prevent modification of original vars.
@@ -360,7 +380,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, c
 
 			
 			//Mean and STD of the matrix and vectors of the choosen resampling method.///////////
-			CountRes /= ResampledSets;
+			CountRes /= ResampledSets; //This needs to be divided into ResampledSets because that is the size of the Matrix, is not a vector anymore.
 			for (int Bin = 0; Bin < NoBins; Bin++)
 			{
 				auto STDCount = SpikesSTDCount.begin();
@@ -404,16 +424,12 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, c
 				//Fill the Probability Vector.
 				std::transform(SpikesCountCorr.begin(), SpikesCountCorr.end(),
 					SpikesPCorr.begin(),
-					[CountCorr](unsigned int Bin) -> double { return (double)Bin / (double)CountCorr; });
+					[&CountCorr](unsigned int& Bin) -> double { return (double)Bin / (double)CountCorr; });
 
+				//Z Transform.
+				std::transform(SpikesPCorr.begin(), SpikesPCorr.end(), SpikesPResampled.begin(), SpikesPCorr.begin(),
+					[&MeanSTD](double& PBin, double& MeanBin) -> double { return (PBin - MeanBin) / MeanSTD; });
 
-				std::transform(SpikesPCorr.begin(), SpikesPCorr.begin(), SpikesPResampled.begin(), SpikesPCorr.begin(),
-					[MeanSTD](double& PBin, double& MeanBin) {return (PBin - MeanBin) / MeanSTD; });
-
-
-
-
-				//CHECAR TODOS LOS FOR EACH Y TRANSFORMS A LA DE YA!!!!!
 
 
 			}
