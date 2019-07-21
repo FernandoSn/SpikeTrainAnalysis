@@ -22,7 +22,7 @@ private:
 	void SpikeTrainShuffle(const std::vector<double>& reference, std::vector<double> target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count);
 	void MasterSpikeCrossCorr();
 	void RunThreadPool();
-	void MasterSpikeCrossCorrWorker(long long Stimulus, int ResampledSets, char ResamplingMethod, double ZValue);
+	void MasterSpikeCrossCorrWorker(long long Stimulus, int ResampledSets, char ResamplingMethod, double ZThresh);
 
 	//void SpikeTrainShift(); // I dont know if Im gonna implement shift, seems that is not very useful for my actual experiment.
 

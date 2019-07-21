@@ -4,6 +4,8 @@
 #include <chrono>
 #include <random>
 #include <thread>
+#include <string>
+#include <fstream>
 
 
 int main()
@@ -44,7 +46,7 @@ int main()
 
 
 	std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
-	Statistician SpikeJuggler("Prueba.dat", 1.0,25,100);
+	//Statistician SpikeJuggler("Prueba.dat", 1.0,25,100);
 	std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
 	std::chrono::duration<float> duration = end - start;
 
@@ -62,6 +64,11 @@ int main()
 		[thresh,thresh2](int u) {return u > thresh && u < thresh2; }),dest.end());
 
 	dest.shrink_to_fit();*/
+
+	int figl = 10;
+	int figl2 = -figl;
+
+	bool rtt = 2 < figl;
 
 	std::cout << duration.count() << std::endl;
 	

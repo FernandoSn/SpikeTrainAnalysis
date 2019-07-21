@@ -4,6 +4,7 @@
 #include <iostream>
 #include <numeric>
 #include <cmath>
+#include <string>
 
 
 constexpr char SHUFFLING = 0;
@@ -290,7 +291,7 @@ void Statistician::RunThreadPool()
 	}
 }
 
-void Statistician::MasterSpikeCrossCorrWorker(long long Stimulus, int ResampledSets, char ResamplingMethod, double ZValue)
+void Statistician::MasterSpikeCrossCorrWorker(long long Stimulus, int ResampledSets, char ResamplingMethod, double ZThresh)
 {
 
 	//NOTE: Im not convienced that STD matrices are the best way to deal with the problem. They are well allocated but anyway they may impact the performance,
@@ -326,19 +327,19 @@ void Statistician::MasterSpikeCrossCorrWorker(long long Stimulus, int ResampledS
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-
+	std::ofstream CorrFile("Stimulus" + std::to_string(Stimulus + 1) + ".SigCorr", std::ios::binary);
 
 	//Nested loops for running the whole analysis. There may be some improvement specially in the las loop if the data is parsed better from matlab.
 
 	//Stimulus locked reference spike train loop
-	int ReferenceUnit = 1;
+	unsigned short ReferenceUnit = 1;
 	for (auto RefTrain = SLSRB + Stimulus * UnitsRef,
 		endRT = RefTrain + UnitsRef;
 		RefTrain < endRT
 		; ++RefTrain, ReferenceUnit++)
 	{
 		//Stimulus locked target spike train loop
-		int TargetUnit = 1;
+		unsigned short TargetUnit = 1;
 		for (auto TarTrain = SLSTB + Stimulus * UnitsTar,
 			endTT = TarTrain + UnitsTar;
 			TarTrain < endTT
@@ -431,7 +432,67 @@ void Statistician::MasterSpikeCrossCorrWorker(long long Stimulus, int ResampledS
 					[&MeanSTD](double& PBin, double& MeanBin) -> double { return (PBin - MeanBin) / MeanSTD; });
 
 
+				//Writing Significant Correlations to File.
+				bool LeadEx = std::any_of(SpikesPCorr.end() - (SpikesPCorr.size() / 2), SpikesPCorr.end(),
+					[&ZThresh](double& ZValue) {return ZValue > ZThresh; });
+				bool LagEx = std::any_of(SpikesPCorr.begin(), SpikesPCorr.begin() + (SpikesPCorr.size() / 2),
+					[&ZThresh](double& ZValue) {return ZValue > ZThresh; });
+				bool LeadIn = std::any_of(SpikesPCorr.end() - (SpikesPCorr.size() / 2), SpikesPCorr.end(),
+					[&ZThresh](double& ZValue) {return ZValue < -ZThresh; });
+				bool LagIn = std::any_of(SpikesPCorr.begin(), SpikesPCorr.begin() + (SpikesPCorr.size() / 2),
+					[&ZThresh](double& ZValue) {return ZValue < -ZThresh; });
 
+				if (LeadEx && LagEx)
+				{
+					unsigned short CorrType = 1;
+					CorrFile.write(reinterpret_cast<char*>(&CorrType), 2);
+					CorrFile.write(reinterpret_cast<char*>(&ReferenceUnit), 2);
+					CorrFile.write(reinterpret_cast<char*>(&TargetUnit), 2);
+				}
+				else if (LeadEx)
+				{
+					unsigned short CorrType = 2;
+					CorrFile.write(reinterpret_cast<char*>(&CorrType), 2);
+					CorrFile.write(reinterpret_cast<char*>(&ReferenceUnit), 2);
+					CorrFile.write(reinterpret_cast<char*>(&TargetUnit), 2);
+				}
+				else if (LagEx)
+				{
+					unsigned short CorrType = 3;
+					CorrFile.write(reinterpret_cast<char*>(&CorrType), 2);
+					CorrFile.write(reinterpret_cast<char*>(&ReferenceUnit), 2);
+					CorrFile.write(reinterpret_cast<char*>(&TargetUnit), 2);
+				}
+
+				if (LeadIn && LagIn)
+				{
+					unsigned short CorrType = 4;
+					CorrFile.write(reinterpret_cast<char*>(&CorrType), 2);
+					CorrFile.write(reinterpret_cast<char*>(&ReferenceUnit), 2);
+					CorrFile.write(reinterpret_cast<char*>(&TargetUnit), 2);
+				}
+				else if (LeadIn)
+				{
+					unsigned short CorrType = 5;
+					CorrFile.write(reinterpret_cast<char*>(&CorrType), 2);
+					CorrFile.write(reinterpret_cast<char*>(&ReferenceUnit), 2);
+					CorrFile.write(reinterpret_cast<char*>(&TargetUnit), 2);
+				}
+				else if (LagIn)
+				{
+					unsigned short CorrType = 6;
+					CorrFile.write(reinterpret_cast<char*>(&CorrType), 2);
+					CorrFile.write(reinterpret_cast<char*>(&ReferenceUnit), 2);
+					CorrFile.write(reinterpret_cast<char*>(&TargetUnit), 2);
+				}
+
+				if ((LeadIn || LagIn) && (LeadEx || LagEx))
+				{
+					unsigned short CorrType = 7;
+					CorrFile.write(reinterpret_cast<char*>(&CorrType), 2);
+					CorrFile.write(reinterpret_cast<char*>(&ReferenceUnit), 2);
+					CorrFile.write(reinterpret_cast<char*>(&TargetUnit), 2);
+				}
 			}
 		}
 	}
