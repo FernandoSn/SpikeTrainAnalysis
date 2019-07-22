@@ -10,6 +10,13 @@
 
 int main()
 {
+	//This is not professional coding. to my taste class are well designed maybe the thread pool or MasterCorr on Statistician
+	//needs more work because a have a ton of code in one method but its acceptable.
+	//The part that is really bad is the user input, first to input different parameters you need to edit this code, you dont have IO.
+	//Second I didnt implement any exception system, this program doesnt have a way to detect semantic erros, specially in the statistics
+	//you got to be very careful with your input parameters.
+
+
 	//std::vector<unsigned int> asd(8,12);
 	//Statistician ctor interval is in sec, binsize and epoch is in ms
 
@@ -24,6 +31,8 @@ int main()
 
 	//auto ty = std::for_each(v2.begin(), v2.end(), [](auto& n) { n *= 2; });
 	std::transform(v2.begin(), v2.end(), v.begin(), v2.begin(),[](auto& n, auto& m) { return n + m; });
+
+	std::transform(v2.begin(), v2.end(), v.begin(), v2.begin(), [](auto& n, auto& m) { return 1; });
 
 	v.erase(std::copy_if(v2.begin(),
 		v2.end(),
