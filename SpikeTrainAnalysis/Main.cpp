@@ -6,6 +6,9 @@
 
 #include "Statistician.h"
 
+
+#include <numeric>
+#include <iterator>
 int main()
 {
 	//This is not professional coding. to my taste class are well designed maybe the thread pool or MasterCorr on Statistician
@@ -53,7 +56,7 @@ int main()
 		{
 			std::cout << "Starting in a single thread.\n";
 			std::cin.get();
-			SpikeJuggler.MasterSpikeCrossCorr(ResampledSets, ResamplingMethod, ZThresh, ExcZeroLag);
+			SpikeJuggler.RunSingleThread(ResampledSets, ResamplingMethod, ZThresh, ExcZeroLag);
 		}
 	}
 	else
@@ -71,7 +74,7 @@ int main()
 		{
 			std::cout << "Starting in a single thread.\n";
 			std::cin.get();
-			SpikeJuggler.MasterSpikeCrossCorr(ResampledSets, ResamplingMethod, ZThresh, ExcZeroLag);
+			SpikeJuggler.RunSingleThread(ResampledSets, ResamplingMethod, ZThresh, ExcZeroLag);
 		}
 	}
 

@@ -196,14 +196,12 @@ void Statistician::SpikeTrainShuffle(const std::vector<double>& reference, std::
 	double TargetRandom;
 
 	//Setting Pseudo Random Number Uniform Distribution
-	std::uniform_int_distribution<int> distribution(1, (int)target.size() - 1);
+	std::uniform_int_distribution<int> distribution(0, (int)target.size()-1);
 
 	for (auto Spikes = SpikesMatrix.begin(), SMEnd = SpikesMatrix.end(); Spikes < SMEnd ; ++Spikes)
 	{
-		
+		//The original cross corr is included in the actual random distribution, jittering seems like a better method.
 		auto RandomIt = target.begin() + distribution(Generator);
-		//auto RandomIt = target.begin() + target.size() - 1;
-		//std::cout << distribution(Generator) <<"\n";
 
 		TargetMin = *target.begin();
 		TargetMax = *(target.end()-1);
@@ -226,7 +224,7 @@ void Statistician::SpikeTrainShuffle(const std::vector<double>& reference, std::
 	}
 }
 
-void Statistician::MasterSpikeCrossCorr(int ResampledSets, unsigned char ResamplingMethod, double ZThresh, bool ExcZeroLag)
+void Statistician::MasterSpikeCrossCorrDeprecated(int ResampledSets, unsigned char ResamplingMethod, double ZThresh, bool ExcZeroLag)
 {
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	std::vector<unsigned int> SpikesCountCorr(NoBins); //Main raw correlation Vector
@@ -431,6 +429,14 @@ void Statistician::MasterSpikeCrossCorr(int ResampledSets, unsigned char Resampl
 	}
 }
 
+void Statistician::RunSingleThread(int ResampledSets, unsigned char ResamplingMethod, double ZThresh, bool ExcZeroLag)
+{
+	for (int Stimulus = 0; Stimulus < OdorEx.GetStimuli(); Stimulus++)
+	{
+		MasterSpikeCrossCorrWorker(Stimulus, ResampledSets, ResamplingMethod, ZThresh, ExcZeroLag);
+	}
+}
+
 void Statistician::RunThreadPool(int ResampledSets, unsigned char ResamplingMethod, double ZThresh, bool ExcZeroLag)
 {
 	//ThreadPool with n threads. n = number of odors.
@@ -447,6 +453,7 @@ void Statistician::RunThreadPool(int ResampledSets, unsigned char ResamplingMeth
 
 	while (true)
 	{
+		//This while loop freezes at the end, I need to implement in another way, but my thread pool works as the single thread.
 		for (CurrentThread = ThreadPool.begin(); CurrentThread < EndThread; ++CurrentThread)
 		{
 			if (CurrentThread->valid())
@@ -455,7 +462,7 @@ void Statistician::RunThreadPool(int ResampledSets, unsigned char ResamplingMeth
 	}
 }
 
-void Statistician::MasterSpikeCrossCorrWorker(long long Stimulus, int ResampledSets, unsigned char ResamplingMethod, double ZThresh, bool ExcZeroLag)
+void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, unsigned char ResamplingMethod, double ZThresh, bool ExcZeroLag)
 {
 
 	//NOTE: Im not convienced that STD matrices are the best way to deal with the problem. They are well allocated but anyway they may impact the performance,
@@ -476,7 +483,7 @@ void Statistician::MasterSpikeCrossCorrWorker(long long Stimulus, int ResampledS
 	std::cout << "end adq vars valve :" << Stimulus << std::endl;
 
 	//Put this thread to sleep just for debugging puposes.
-	std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+	//std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
 	mu.unlock();
 
@@ -501,14 +508,14 @@ void Statistician::MasterSpikeCrossCorrWorker(long long Stimulus, int ResampledS
 
 	//Stimulus locked reference spike train loop
 	unsigned short ReferenceUnit = 1;
-	for (auto RefTrain = SLSRB + Stimulus * UnitsRef,
+	for (auto RefTrain = SLSRB + ((__int64)Stimulus * UnitsRef),
 		endRT = RefTrain + UnitsRef;
 		RefTrain < endRT
 		; ++RefTrain, ReferenceUnit++)
 	{
 		//Stimulus locked target spike train loop
 		unsigned short TargetUnit = 1;
-		for (auto TarTrain = SLSTB + Stimulus * UnitsTar,
+		for (auto TarTrain = SLSTB + ((__int64)Stimulus * UnitsTar),
 			endTT = TarTrain + UnitsTar;
 			TarTrain < endTT
 			; ++TarTrain, TargetUnit++)
@@ -552,18 +559,19 @@ void Statistician::MasterSpikeCrossCorrWorker(long long Stimulus, int ResampledS
 			CountRes /= ResampledSets; //This needs to be divided into ResampledSets because that is the size of the Matrix, is not a vector anymore.
 			for (int Bin = 0; Bin < NoBins; Bin++)
 			{
+				//Looping through the Matrix and filling the STDCount Vector.
 				auto STDCount = SpikesSTDCount.begin();
 				auto STDCountEnd = SpikesSTDCount.end();
-
 				for (auto BinVec = SpikesCountResampled.cbegin(), BinVecEnd = SpikesCountResampled.cend();
 					BinVec < BinVecEnd;
 					++BinVec, ++STDCount)
 				{
 					*STDCount = *(BinVec->begin() + Bin);
+					
 				}
 
 				//Math for the params that are needed by the Z Test
-				double BinMean = (double)std::accumulate(STDCount, STDCountEnd, 0) / (double)ResampledSets;
+				double BinMean = (double)std::accumulate(SpikesSTDCount.begin(), SpikesSTDCount.end(), 0) / (double)ResampledSets;
 
 				//Necesary check for unpopulated resampled correlograms. false positives can be assumed if this is not checked, although this is not the best way to code it. Bad design.
 				if (BinMean == 0)
@@ -583,7 +591,6 @@ void Statistician::MasterSpikeCrossCorrWorker(long long Stimulus, int ResampledS
 				STDCount = SpikesSTDCount.begin(); // Reseting the iterator of the vector.
 			}
 			/////////////////////////////////////////////////////////////////////////////////////
-
 
 			if (GoodResampling && CountCorr != 0)
 			{
@@ -609,6 +616,7 @@ void Statistician::MasterSpikeCrossCorrWorker(long long Stimulus, int ResampledS
 					[&ZThresh](double& ZValue) {return ZValue < -ZThresh; });
 				bool LagIn = std::any_of(SpikesPCorr.begin(), SpikesPCorr.begin() + (SpikesPCorr.size() / 2) - BinExcluded,
 					[&ZThresh](double& ZValue) {return ZValue < -ZThresh; });
+
 
 				if (LeadEx && LagEx)
 				{
@@ -672,7 +680,9 @@ void Statistician::MasterSpikeCrossCorrWorker(long long Stimulus, int ResampledS
 					std::fill(BinVec.begin(), BinVec.end(), 0);
 				});
 
-			std::cout << "Stimulus " << Stimulus <<". Finished reference unit "<< ReferenceUnit << " vs target unit " << TargetUnit <<  ".\n";
+			mu.lock();
+			std::cout << "Stimulus " << Stimulus + 1 <<". Finished reference unit "<< ReferenceUnit << " vs target unit " << TargetUnit <<  ".\n";
+			mu.unlock();
 		}
 	}
 }
