@@ -202,6 +202,8 @@ void Statistician::SpikeTrainShuffle(const std::vector<double>& reference, std::
 	{
 		
 		auto RandomIt = target.begin() + distribution(Generator);
+		//auto RandomIt = target.begin() + target.size() - 1;
+		//std::cout << distribution(Generator) <<"\n";
 
 		TargetMin = *target.begin();
 		TargetMax = *(target.end()-1);
@@ -253,13 +255,13 @@ void Statistician::MasterSpikeCrossCorr(int ResampledSets, unsigned char Resampl
 		for (auto RefTrain = StimLockedSpikesRef.cbegin() + (long long)Stimulus * OdorEx.GetUnitsRef(),
 			endRT = RefTrain + OdorEx.GetUnitsRef();
 			RefTrain < endRT
-			; ++RefTrain)
+			; ++RefTrain, ReferenceUnit++)
 		{
 			unsigned short TargetUnit = 1;
 			for (auto TarTrain = StimLockedSpikesTar.cbegin() + (long long)Stimulus * OdorEx.GetUnitsRef(),
 				endTT = TarTrain + OdorEx.GetUnitsTar();
 				TarTrain < endTT
-				; ++TarTrain)
+				; ++TarTrain, TargetUnit++)
 			{
 				auto RefTrialTrain = RefTrain; //this is the downside of the way I parse the matlab data.
 				auto TarTrialTrain = TarTrain; //Aux vars to prevent modification of original vars.
@@ -273,7 +275,7 @@ void Statistician::MasterSpikeCrossCorr(int ResampledSets, unsigned char Resampl
 					if ((RefTrialTrain->size() != 0 && TarTrialTrain->size() != 0))
 					{
 						SpikeTrainCorr(*RefTrialTrain, *TarTrialTrain, SpikesCountCorr, CountCorr); //Compute Corr.
-
+						//std::cout << ".\n";
 						switch (ResamplingMethod)
 						{
 
@@ -422,6 +424,8 @@ void Statistician::MasterSpikeCrossCorr(int ResampledSets, unsigned char Resampl
 					{
 						std::fill(BinVec.begin(), BinVec.end(), 0);
 					});
+
+				std::cout << "Stimulus " << Stimulus << ". Finished reference unit " << ReferenceUnit << " vs target unit " << TargetUnit << ".\n";
 			}
 		}
 	}
@@ -667,6 +671,8 @@ void Statistician::MasterSpikeCrossCorrWorker(long long Stimulus, int ResampledS
 				{
 					std::fill(BinVec.begin(), BinVec.end(), 0);
 				});
+
+			std::cout << "Stimulus " << Stimulus <<". Finished reference unit "<< ReferenceUnit << " vs target unit " << TargetUnit <<  ".\n";
 		}
 	}
 }
