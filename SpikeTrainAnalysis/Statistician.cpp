@@ -497,7 +497,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 	auto SLSRB = StimLockedSpikesRef.cbegin();
 	auto SLSTB = StimLockedSpikesTar.cbegin();
 
-	std::cout << "Stimulus: " << Stimulus << ", Ref: " << UnitsRef 
+	std::cout << "Stimulus: " << Stimulus +1 << ", Ref: " << UnitsRef 
 		<< ", Tar: " << UnitsTar << ", Trials: " << Trials << "\n";
 
 	//Put this thread to sleep just for debugging puposes.
@@ -515,8 +515,10 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 	std::vector<double> SpikesPResampled(NoBins); // Vector for probabilities scores.
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	//File for storing the sig data.
+	//std::ofstream CorrFile("Stimulus" + std::to_string(Stimulus + 1) + ".SigCorr", std::ios::binary);
+	std::ofstream CorrFile("Stimulus" + std::to_string(Stimulus + 1) + ".txt");
 
-	std::ofstream CorrFile("Stimulus" + std::to_string(Stimulus + 1) + ".SigCorr", std::ios::binary);
 
 	//Check if we want to exclude "zero lag" correlations.
 	int BinExcluded = 0;
@@ -638,57 +640,40 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 
 				if (LeadEx && LagEx)
 				{
-					unsigned short CorrType = 1;
+					//Comented code for binary files
+					/*unsigned short CorrType = 1;
 					CorrFile.write(reinterpret_cast<char*>(&CorrType), 2);
 					CorrFile.write(reinterpret_cast<char*>(&ReferenceUnit), 2);
-					CorrFile.write(reinterpret_cast<char*>(&TargetUnit), 2);
+					CorrFile.write(reinterpret_cast<char*>(&TargetUnit), 2);*/
+
+					//Code to store in txt files.
+					CorrFile << 1 << ", " << ReferenceUnit << ", " << TargetUnit << "\n";
 				}
 				else if (LeadEx)
 				{
-					mu.lock();
-					std::cout << "Stimulus " << Stimulus + 1 <<". Finished reference unit "<< ReferenceUnit << " vs target unit " << TargetUnit <<  ".\n";
-					mu.unlock();
-					unsigned short CorrType = 2;
-					CorrFile.write(reinterpret_cast<char*>(&CorrType), 2);
-					CorrFile.write(reinterpret_cast<char*>(&ReferenceUnit), 2);
-					CorrFile.write(reinterpret_cast<char*>(&TargetUnit), 2);
+					CorrFile << 2 << ", " << ReferenceUnit << ", " << TargetUnit << "\n";
 				}
 				else if (LagEx)
 				{
-					unsigned short CorrType = 3;
-					CorrFile.write(reinterpret_cast<char*>(&CorrType), 2);
-					CorrFile.write(reinterpret_cast<char*>(&ReferenceUnit), 2);
-					CorrFile.write(reinterpret_cast<char*>(&TargetUnit), 2);
+					CorrFile << 3 << ", " << ReferenceUnit << ", " << TargetUnit << "\n";
 				}
 
 				if (LeadIn && LagIn)
 				{
-					unsigned short CorrType = 4;
-					CorrFile.write(reinterpret_cast<char*>(&CorrType), 2);
-					CorrFile.write(reinterpret_cast<char*>(&ReferenceUnit), 2);
-					CorrFile.write(reinterpret_cast<char*>(&TargetUnit), 2);
+					CorrFile << 4 << ", " << ReferenceUnit << ", " << TargetUnit << "\n";
 				}
 				else if (LeadIn)
 				{
-					unsigned short CorrType = 5;
-					CorrFile.write(reinterpret_cast<char*>(&CorrType), 2);
-					CorrFile.write(reinterpret_cast<char*>(&ReferenceUnit), 2);
-					CorrFile.write(reinterpret_cast<char*>(&TargetUnit), 2);
+					CorrFile << 5 << ", " << ReferenceUnit << ", " << TargetUnit << "\n";
 				}
 				else if (LagIn)
 				{
-					unsigned short CorrType = 6;
-					CorrFile.write(reinterpret_cast<char*>(&CorrType), 2);
-					CorrFile.write(reinterpret_cast<char*>(&ReferenceUnit), 2);
-					CorrFile.write(reinterpret_cast<char*>(&TargetUnit), 2);
+					CorrFile << 6 << ", " << ReferenceUnit << ", " << TargetUnit << "\n";
 				}
 
 				if ((LeadIn || LagIn) && (LeadEx || LagEx))
 				{
-					unsigned short CorrType = 7;
-					CorrFile.write(reinterpret_cast<char*>(&CorrType), 2);
-					CorrFile.write(reinterpret_cast<char*>(&ReferenceUnit), 2);
-					CorrFile.write(reinterpret_cast<char*>(&TargetUnit), 2);
+					CorrFile << 7 << ", " << ReferenceUnit << ", " << TargetUnit << "\n";
 				}
 			}
 
@@ -701,9 +686,9 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 					std::fill(BinVec.begin(), BinVec.end(), 0);
 				});
 
-			/*mu.lock();
+			mu.lock();
 			std::cout << "Stimulus " << Stimulus + 1 <<". Finished reference unit "<< ReferenceUnit << " vs target unit " << TargetUnit <<  ".\n";
-			mu.unlock();*/
+			mu.unlock();
 		}
 	}
 
