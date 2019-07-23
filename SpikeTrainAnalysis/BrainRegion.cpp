@@ -29,3 +29,8 @@ std::vector<std::vector<double>>& BrainRegion::RUnits()
 {
 	return Units;
 }
+
+std::vector<std::vector<double>> BrainRegion::UnitsCopy()
+{
+	return Units;
+}

@@ -10,7 +10,7 @@ class Statistician
 {
 public:
 
-	Statistician(std::string FileName, int BinSize, int Epoch);
+	Statistician(std::string FileName, int BinSize, int Epoch, bool IsSpontaneous);
 	Statistician(std::string FileName, double Interval, int BinSize, int Epoch);
 	void RunThreadPool(int ResampledSets, unsigned char ResamplingMethod, double ZThresh, bool ExcZeroLag);
 	void RunSingleThread(int ResampledSets, unsigned char ResamplingMethod, double ZThresh, bool ExcZeroLag);

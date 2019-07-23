@@ -9,21 +9,31 @@
 
 
 
-Statistician::Statistician(std::string FileName, int BinSize, int Epoch)
+Statistician::Statistician(std::string FileName, int BinSize, int Epoch, bool IsSpontaneous)
 	:
 	BinSize(BinSize),
 	Epoch(Epoch),
 	NoBins((Epoch / BinSize) * 2),
-	BinSizeSec(BinSize / 1000.0),
-	EpochSec(Epoch / 1000.0),
-	OdorEx(FileName),
+	BinSizeSec((double)BinSize / 1000.0),
+	EpochSec((double)Epoch / 1000.0),
+	OdorEx(FileName,IsSpontaneous),
 	Reference(OdorEx.RDataFile(), OdorEx.GetUnitsRef(), OdorEx.GetRefSizePos(), OdorEx.GetRefTrainPos()),
 	Target(OdorEx.RDataFile(), OdorEx.GetUnitsTar(), OdorEx.GetTarSizePos(), OdorEx.GetTarTrainPos()),
 	StimLockedSpikesRef((long long)OdorEx.GetStimuli() * (long long)OdorEx.GetMagnitudes() * (long long)OdorEx.GetTrials() * (long long)OdorEx.GetUnitsRef()),
 	StimLockedSpikesTar((long long)OdorEx.GetStimuli() * (long long)OdorEx.GetMagnitudes() * (long long)OdorEx.GetTrials() * (long long)OdorEx.GetUnitsTar()),
 	Generator(Rd())
 {
-	SetStimLockedSpikes();
+	if(IsSpontaneous)
+	{ 
+		StimLockedSpikesRef = Reference.UnitsCopy();
+		StimLockedSpikesTar = Target.UnitsCopy();
+	}
+	else
+	{
+		SetStimLockedSpikes();
+	}
+
+
 }
 
 Statistician::Statistician(std::string FileName, double Interval, int BinSize, int Epoch)
@@ -31,9 +41,9 @@ Statistician::Statistician(std::string FileName, double Interval, int BinSize, i
 	BinSize(BinSize),
 	Epoch(Epoch),
 	NoBins((Epoch / BinSize) * 2),
-	BinSizeSec(BinSize / 1000.0),
-	EpochSec(Epoch / 1000.0),
-	OdorEx(FileName),
+	BinSizeSec((double)BinSize / 1000.0),
+	EpochSec((double)Epoch / 1000.0),
+	OdorEx(FileName,false),
 	Reference(OdorEx.RDataFile(), OdorEx.GetUnitsRef(), OdorEx.GetRefSizePos(), OdorEx.GetRefTrainPos()),
 	Target(OdorEx.RDataFile(), OdorEx.GetUnitsTar(), OdorEx.GetTarSizePos(), OdorEx.GetTarTrainPos()),
 	StimLockedSpikesRef((long long)OdorEx.GetStimuli() * (long long)OdorEx.GetMagnitudes() * (long long)OdorEx.GetTrials() * (long long)OdorEx.GetUnitsRef()),
@@ -143,7 +153,6 @@ void Statistician::SpikeTrainCorr(const std::vector<double>& reference, const st
 
 	double CurrentBinF;
 	double CurrentBinL;
-
 	for (const double& Spike : reference)
 	{
 		CurrentBinF = Spike - EpochSec; // Set the current bins for the lambda function.
@@ -151,6 +160,7 @@ void Statistician::SpikeTrainCorr(const std::vector<double>& reference, const st
 
 		for (unsigned int& Bin : Spikes)
 		{
+		std::cout << "Shuff: " << "\n";
 			Bin += (unsigned int)std::count_if(target.begin(), //std library stuff, very convenient and fast.
 				target.end(),
 				[&CurrentBinF, &CurrentBinL](double TargetSpike) 
@@ -159,8 +169,9 @@ void Statistician::SpikeTrainCorr(const std::vector<double>& reference, const st
 				}
 			);
 
+		std::cout << "Shuff2: " << "\n";
 			CurrentBinF = CurrentBinL;
-			CurrentBinL = +BinSizeSec;
+			CurrentBinL = CurrentBinF + BinSizeSec;
 		}
 	}
 	Count += (unsigned int)reference.size();
@@ -202,7 +213,6 @@ void Statistician::SpikeTrainShuffle(const std::vector<double>& reference, std::
 	{
 		//The original cross corr is included in the actual random distribution, jittering seems like a better method.
 		auto RandomIt = target.begin() + distribution(Generator);
-
 		TargetMin = *target.begin();
 		TargetMax = *(target.end()-1);
 		TargetRandom = *RandomIt;
@@ -471,16 +481,15 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 
 
 	mu.lock();
-	//Locked code to access common memory between threads.
-	std::cout << "adq vars valve :" << Stimulus << std::endl;
-
+	//Locked code to access common memory between threads
 	int UnitsRef = OdorEx.GetUnitsRef();
 	int UnitsTar = OdorEx.GetUnitsTar();
 	int Trials = OdorEx.GetTrials();
 	auto SLSRB = StimLockedSpikesRef.cbegin();
 	auto SLSTB = StimLockedSpikesTar.cbegin();
 
-	std::cout << "end adq vars valve :" << Stimulus << std::endl;
+	std::cout << "Stimulus: " << Stimulus << ", Ref: " << UnitsRef 
+		<< ", Tar: " << UnitsTar << ", Trials: " << Trials << "\n";
 
 	//Put this thread to sleep just for debugging puposes.
 	//std::this_thread::sleep_for(std::chrono::milliseconds(1000));
@@ -525,6 +534,10 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 			unsigned int CountCorr = 0;
 			unsigned int CountRes = 0;
 			bool GoodResampling = true;
+
+			mu.lock();
+			std::cout << "Stimulus " << Stimulus + 1 << ". Finished reference unit " << ReferenceUnit << " vs target unit " << TargetUnit << ".\n";
+			mu.unlock();
 
 			//Trial Loop/////////////////////////////////////////////////////////////////////////
 			for (int Trial = 0; Trial < Trials;
@@ -575,7 +588,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 
 				//Necesary check for unpopulated resampled correlograms. false positives can be assumed if this is not checked, although this is not the best way to code it. Bad design.
 				if (BinMean == 0)
-					GoodResampling = false; break;
+					GoodResampling = false;
 
 				double BinVariance = 0.0;
 
@@ -592,7 +605,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 			}
 			/////////////////////////////////////////////////////////////////////////////////////
 
-			if (GoodResampling && CountCorr != 0)
+			if (GoodResampling && (CountCorr != 0))
 			{
 				
 				double MeanSTD = (double)std::accumulate(SpikesSTDResampled.begin(), SpikesSTDResampled.end(), 0.0) / (double)SpikesSTDResampled.size();
@@ -680,9 +693,37 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 					std::fill(BinVec.begin(), BinVec.end(), 0);
 				});
 
-			mu.lock();
+			/*mu.lock();
 			std::cout << "Stimulus " << Stimulus + 1 <<". Finished reference unit "<< ReferenceUnit << " vs target unit " << TargetUnit <<  ".\n";
-			mu.unlock();
+			mu.unlock();*/
 		}
 	}
+
+
+	if (CorrFile.bad())
+		std::cout << "bad";
+
+	else if (CorrFile.eof())
+		std::cout << "eof";
+
+	else if (CorrFile.fail())
+		std::cout << "other fail";
+
+	else if (CorrFile.good())
+	{
+		CorrFile.close();
+		mu.lock();
+		std::cout << "Data file was closed successfully";
+		std::cin.get();
+		mu.unlock();
+	}
+
+	if (CorrFile.rdstate() == (std::ios_base::failbit | std::ios_base::eofbit))
+	{
+		mu.lock();
+		std::cout << "stream state is eofbit\n";
+		mu.unlock();
+	}
+
+
 }

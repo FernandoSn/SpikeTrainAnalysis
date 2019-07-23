@@ -18,12 +18,12 @@ int main()
 	//you got to be very careful with your input parameters.
 
 	//Statistician ctor interval is in sec, binsize and epoch is in ms
-
-	bool MultiThreading = false;
-	std::string FileName("Prueba.dat"); //Name of the File that was created with Matlab code.
+	bool IsSpontaneous = true; //For Spontanepus activity correlations. if this is false mutlithreading and PREX should be false.
+	bool MultiThreading = false; 
+	bool PREX = false; //Use first respiration, if its false its gonna use the Stimulus on and off.
+	std::string FileName("PruebaS.dat"); //Name of the File that was created with Matlab code.
 	int BinSize = 25; //Miliseconds.
 	int Epoch = 100; //Miliseconds. Epoch for the analysis.
-	bool PREX = true; //Use first respiration, if its false its gonna use the Stimulus on and off.
 	double Interval = 1.0; //Seconds. Interval used for statician ctor with PREX enabled.
 	unsigned char ResamplingMethod = SHUFFLING; //Select the resampling Method.
 	int ResampledSets = 100; //Recommended 100 for shuffle (Burgos-Robles,2017), 1000 for jittering (Fujisawa,2008)
@@ -62,7 +62,7 @@ int main()
 	else
 	{
 		std::cout << " Constructing with On and Off.\n";
-		Statistician SpikeJuggler(FileName, BinSize, Epoch);
+		Statistician SpikeJuggler(FileName, BinSize, Epoch, IsSpontaneous);
 		if (MultiThreading)
 		{
 			std::cout << std::thread::hardware_concurrency() << " concurrent threads are supported.\n"

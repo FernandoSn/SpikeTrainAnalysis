@@ -1,12 +1,12 @@
 #include "Experiment.h"
 #include <iostream>
 
-Experiment::Experiment(std::string FileName)
+Experiment::Experiment(std::string FileName, bool IsSpontaneous)
 	:
 	DataFile(FileName, std::ios::binary)
 {
-	SetNumericalParams();
-	SetExpDataVectors();
+	SetNumericalParams(IsSpontaneous);
+	SetExpDataVectors(IsSpontaneous);
 }
 
 Experiment::~Experiment()
@@ -31,7 +31,7 @@ Experiment::~Experiment()
 		std::cout << "stream state is eofbit\n";
 	}
 
-	std::cin.get();
+	//std::cin.get();
 }
 
 int Experiment::GetStimuli()
@@ -114,7 +114,7 @@ std::vector<double>& Experiment::GetPREXTimes()
 	return PREXTimes;
 }
 
-void Experiment::SetNumericalParams()
+void Experiment::SetNumericalParams(bool IsSpontaneous)
 {
 	//Helper Variables to obtain data.
 	unsigned short Data; // var for getting each param out of the DataFile
@@ -153,31 +153,42 @@ void Experiment::SetNumericalParams()
 		TarTrainPos += TempData * 8; //8 because we are reading 8 byte doubles now.
 	}
 
-	TimesOnPos = TarTrainPos;
-	for (int i = 0; i < UnitsTar; i++)
+	if (IsSpontaneous)
 	{
-		DataFile.read(TempPtr, 4);
-		TimesOnPos += TempData * 8; //8 because we are reading 8 byte doubles now.
+		TimesOnPos = -1;
+		TimesOffPos = -1;
+		PREXTimesPos = -1;
 	}
+	else
+	{
+		TimesOnPos = TarTrainPos;
+		for (int i = 0; i < UnitsTar; i++)
+		{
+			DataFile.read(TempPtr, 4);
+			TimesOnPos += TempData * 8; //8 because we are reading 8 byte doubles now.
+		}
 
-	TimesOffPos = TimesOnPos + Stimuli * Magnitudes * Trials * 8;
+		TimesOffPos = TimesOnPos + Stimuli * Magnitudes * Trials * 8;
 
-	PREXTimesPos = TimesOffPos + Stimuli * Magnitudes * Trials * 8;
+		PREXTimesPos = TimesOffPos + Stimuli * Magnitudes * Trials * 8;
+	}
 }
 
-void Experiment::SetExpDataVectors()
+void Experiment::SetExpDataVectors(bool IsSpontaneous)
 {
 	StimOn.resize((long long)Stimuli * (long long)Magnitudes * (long long)Trials);
 	StimOff.resize((long long)Stimuli * (long long)Magnitudes * (long long)Trials);
 	PREXTimes.resize((long long)Stimuli * (long long)Magnitudes * (long long)Trials);
 
+	if (!IsSpontaneous)
+	{
+		DataFile.seekg(TimesOnPos, DataFile.beg);
+		DataFile.read(reinterpret_cast<char*>(StimOn.data()), (long long)StimOn.size() * 8L);
 
-	DataFile.seekg(TimesOnPos, DataFile.beg);
-	DataFile.read(reinterpret_cast<char*>(StimOn.data()), (long long)StimOn.size() * 8L);
+		DataFile.seekg(TimesOffPos, DataFile.beg);
+		DataFile.read(reinterpret_cast<char*>(StimOff.data()), (long long)StimOff.size() * 8L);
 
-	DataFile.seekg(TimesOffPos, DataFile.beg);
-	DataFile.read(reinterpret_cast<char*>(StimOff.data()), (long long)StimOff.size() * 8L);
-
-	DataFile.seekg(PREXTimesPos, DataFile.beg);
-	DataFile.read(reinterpret_cast<char*>(PREXTimes.data()), (long long)PREXTimes.size() * 8L);
+		DataFile.seekg(PREXTimesPos, DataFile.beg);
+		DataFile.read(reinterpret_cast<char*>(PREXTimes.data()), (long long)PREXTimes.size() * 8L);
+	}
 }

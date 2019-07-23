@@ -6,7 +6,7 @@ class Experiment
 {
 public:
 
-	Experiment(std::string FileName);
+	Experiment(std::string FileName, bool IsSpontaneous);
 	~Experiment();
 
 	int GetStimuli();
@@ -31,8 +31,8 @@ public:
 
 private:
 
-	void SetNumericalParams();
-	void SetExpDataVectors();
+	void SetNumericalParams(bool IsSpontaneous);
+	void SetExpDataVectors(bool IsSpontaneous);
 
 private:
 
