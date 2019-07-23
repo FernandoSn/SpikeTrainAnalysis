@@ -156,28 +156,43 @@ void Statistician::SpikeTrainCorr(const std::vector<double>& reference, const st
 	auto LBit = target.begin();
 
 		//std::cout << "Shuff: " << "\n";
-	for(auto Spike = reference.begin(), LastSpike = reference.end(); Spike < LastSpike; ++Spike)
-	//for (const double& Spike : reference)
+	//for(auto Spike = reference.begin(), LastSpike = reference.end(); Spike < LastSpike; ++Spike)
+	for (const double& Spike : reference)
 	{
-		CurrentBinF = *Spike - EpochSec; // Set the current bins for the lambda function.
+		CurrentBinF = Spike - EpochSec; // Set the current bins for the lambda function.
 		CurrentBinL = CurrentBinF + BinSizeSec;
 
-		LBit = std::lower_bound(LBit, target.end(), *Spike - EpochSec);
-		auto UBit = std::upper_bound(LBit, target.end(), *Spike + EpochSec);
+		//Boundaries of the target spikes.
+		LBit = std::lower_bound(LBit, target.end(), Spike - EpochSec);
+		auto UBit = std::upper_bound(LBit, target.end(), Spike + EpochSec);
 
-		for (auto Bin = Spikes.begin(), LastBin = Spikes.end(); Bin < LastBin; ++Bin)
+		//Ierators for Count Corr vec
+		auto Bin = Spikes.begin(), LastBin = Spikes.end();
+
+		for (; Bin < LastBin - (NoBins/2); ++Bin)
 		//for (unsigned int& Bin : Spikes)
 		{
 			*Bin += (unsigned int)std::count_if(LBit, //std library stuff, very convenient and fast.
 				UBit,
 				[&CurrentBinF, &CurrentBinL](double TargetSpike) 
 				{
-					return TargetSpike > CurrentBinF && TargetSpike <= CurrentBinL; 
+					return TargetSpike >= CurrentBinF && TargetSpike < CurrentBinL; 
 				}
 			);
+			CurrentBinF = CurrentBinL;
+			CurrentBinL = CurrentBinF + BinSizeSec;
+		}
 
-
-
+		for (; Bin < LastBin; ++Bin)
+			//for (unsigned int& Bin : Spikes)
+		{
+			*Bin += (unsigned int)std::count_if(LBit, //std library stuff, very convenient and fast.
+				UBit,
+				[&CurrentBinF, &CurrentBinL](double TargetSpike)
+				{
+					return TargetSpike > CurrentBinF && TargetSpike <= CurrentBinL;
+				}
+			);
 			CurrentBinF = CurrentBinL;
 			CurrentBinL = CurrentBinF + BinSizeSec;
 		}
