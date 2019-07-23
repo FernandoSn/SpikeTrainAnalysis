@@ -22,7 +22,7 @@ Experiment::~Experiment()
 
 	else if (DataFile.good())
 	{
-		std::cout << "Data file was closed successfully";
+		std::cout << "Data file was closed successfully\n";
 		DataFile.close();
 	}
 

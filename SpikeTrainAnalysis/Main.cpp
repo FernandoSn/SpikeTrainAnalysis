@@ -18,10 +18,10 @@ int main()
 	//you got to be very careful with your input parameters.
 
 	//Statistician ctor interval is in sec, binsize and epoch is in ms
-	bool IsSpontaneous = true; //For Spontanepus activity correlations. if this is false mutlithreading and PREX should be false.
+	bool IsSpontaneous = false; //For Spontanepus activity correlations. if this is false mutlithreading and PREX should be false.
 	bool MultiThreading = false; 
-	bool PREX = false; //Use first respiration, if its false its gonna use the Stimulus on and off.
-	std::string FileName("PruebaS.dat"); //Name of the File that was created with Matlab code.
+	bool PREX = true; //Use first respiration, if its false its gonna use the Stimulus on and off.
+	std::string FileName("Prueba.dat"); //Name of the File that was created with Matlab code.
 	int BinSize = 25; //Miliseconds.
 	int Epoch = 100; //Miliseconds. Epoch for the analysis.
 	double Interval = 1.0; //Seconds. Interval used for statician ctor with PREX enabled.
