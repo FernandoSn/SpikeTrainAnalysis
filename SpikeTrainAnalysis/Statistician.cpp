@@ -153,15 +153,18 @@ void Statistician::SpikeTrainCorr(const std::vector<double>& reference, const st
 
 	double CurrentBinF;
 	double CurrentBinL;
-	for (const double& Spike : reference)
+
+		std::cout << "Shuff: " << "\n";
+	for(auto Spike = reference.begin(), LastSpike = reference.end(); Spike < LastSpike; ++Spike)
+	//for (const double& Spike : reference)
 	{
-		CurrentBinF = Spike - EpochSec; // Set the current bins for the lambda function.
+		CurrentBinF = *Spike - EpochSec; // Set the current bins for the lambda function.
 		CurrentBinL = CurrentBinF + BinSizeSec;
 
-		for (unsigned int& Bin : Spikes)
+		for (auto Bin = Spikes.begin(), LastBin = Spikes.end(); Bin < LastBin; ++Bin)
+		//for (unsigned int& Bin : Spikes)
 		{
-		std::cout << "Shuff: " << "\n";
-			Bin += (unsigned int)std::count_if(target.begin(), //std library stuff, very convenient and fast.
+			*Bin += (unsigned int)std::count_if(target.begin(), //std library stuff, very convenient and fast.
 				target.end(),
 				[&CurrentBinF, &CurrentBinL](double TargetSpike) 
 				{
@@ -169,11 +172,11 @@ void Statistician::SpikeTrainCorr(const std::vector<double>& reference, const st
 				}
 			);
 
-		std::cout << "Shuff2: " << "\n";
 			CurrentBinF = CurrentBinL;
 			CurrentBinL = CurrentBinF + BinSizeSec;
 		}
 	}
+		std::cout << "Shuff2: " << "\n";
 	Count += (unsigned int)reference.size();
 }
 
