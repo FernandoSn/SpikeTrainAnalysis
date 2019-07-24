@@ -170,7 +170,6 @@ void Statistician::SpikeTrainCorr(const std::vector<double>& reference, const st
 		auto Bin = Spikes.begin(), LastBin = Spikes.end();
 
 		for (; Bin < LastBin - (NoBins/2); ++Bin)
-		//for (unsigned int& Bin : Spikes)
 		{
 			*Bin += (unsigned int)std::count_if(LBit, //std library stuff, very convenient and fast.
 				UBit,
@@ -184,7 +183,6 @@ void Statistician::SpikeTrainCorr(const std::vector<double>& reference, const st
 		}
 
 		for (; Bin < LastBin; ++Bin)
-			//for (unsigned int& Bin : Spikes)
 		{
 			*Bin += (unsigned int)std::count_if(LBit, //std library stuff, very convenient and fast.
 				UBit,
@@ -612,13 +610,14 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 				if (BinMean == 0)
 					GoodResampling = false;
 
+
 				double BinVariance = 0.0;
 
 				for (STDCount = SpikesSTDCount.begin(); STDCount < STDCountEnd; ++STDCount)
 				{
 					BinVariance += ((double)(*STDCount) - BinMean) * ((double)(*STDCount) - BinMean);
 				}
-				BinVariance /= ((double)ResampledSets-1.0); // this is Variance over N. Matlab uses Bessels correction to compute STD.
+				BinVariance /= ((double)ResampledSets-1.0); // this is Variance over N. Matlab uses Bessels correction to compute STD. Actually Im gonna use Bessels correction.
 
 				*(SpikesSTDResampled.begin() + Bin) = std::sqrt(BinVariance) / (double)CountRes; // Stand deviation to my STD vector.
 				*(SpikesPResampled.begin() + Bin) = BinMean / (double)CountRes;
