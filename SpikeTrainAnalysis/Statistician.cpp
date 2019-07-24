@@ -721,7 +721,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 		CorrFile.close();
 		mu.lock();
 		std::cout << "Data file was closed successfully\n";
-		std::cin.get();
+		//std::cin.get();
 		mu.unlock();
 	}
 
