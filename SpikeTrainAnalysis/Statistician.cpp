@@ -256,211 +256,6 @@ void Statistician::SpikeTrainShuffle(const std::vector<double>& reference, std::
 	}
 }
 
-void Statistician::MasterSpikeCrossCorrDeprecated(int ResampledSets, unsigned char ResamplingMethod, double ZThresh, bool ExcZeroLag)
-{
-	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	std::vector<unsigned int> SpikesCountCorr(NoBins); //Main raw correlation Vector
-	std::vector<double> SpikesPCorr(NoBins); // Vector for probabilities and Z scores. P stands for probability.
-
-	std::vector<std::vector<unsigned int>> SpikesCountResampled(ResampledSets, std::vector<unsigned int>(NoBins)); // Good! Resampling Matrix, this is annoying but necessary to obtain the standard deviation.
-	std::vector<unsigned int> SpikesSTDCount(ResampledSets);
-	std::vector<double> SpikesSTDResampled(NoBins); // STD vector. STD is obtained across ResampledSets of mean trials.
-	std::vector<double> SpikesPResampled(NoBins); // Vector for probabilities scores.
-
-	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-	std::ofstream CorrFile("TotalStimulus.SigCorr", std::ios::binary);
-
-	//Check if we want to exclude "zero lag" correlations.
-	int BinExcluded = 0;
-	if (ExcZeroLag)
-		BinExcluded = 1;
-
-	//Nested loops for running the whole analysis. There may be some improvement specially in the las loop if the data is parsed better from matlab.
-	//first loop might be implemented in a multithreading design.
-
-	for (unsigned short Stimulus = 0; Stimulus < (unsigned short)OdorEx.GetStimuli(); Stimulus++)
-	{
-		unsigned short ReferenceUnit = 1;
-		for (auto RefTrain = StimLockedSpikesRef.cbegin() + (long long)Stimulus * OdorEx.GetUnitsRef(),
-			endRT = RefTrain + OdorEx.GetUnitsRef();
-			RefTrain < endRT
-			; ++RefTrain, ReferenceUnit++)
-		{
-			unsigned short TargetUnit = 1;
-			for (auto TarTrain = StimLockedSpikesTar.cbegin() + (long long)Stimulus * OdorEx.GetUnitsRef(),
-				endTT = TarTrain + OdorEx.GetUnitsTar();
-				TarTrain < endTT
-				; ++TarTrain, TargetUnit++)
-			{
-				auto RefTrialTrain = RefTrain; //this is the downside of the way I parse the matlab data.
-				auto TarTrialTrain = TarTrain; //Aux vars to prevent modification of original vars.
-				unsigned int CountCorr = 0;
-				unsigned int CountRes = 0;
-				bool GoodResampling = true;
-
-				for (int Trial = 0; Trial < OdorEx.GetTrials(); 
-					RefTrialTrain += OdorEx.GetUnitsRef(), TarTrialTrain += OdorEx.GetUnitsTar(), Trial++)
-				{
-					if ((RefTrialTrain->size() != 0 && TarTrialTrain->size() != 0))
-					{
-						SpikeTrainCorr(*RefTrialTrain, *TarTrialTrain, SpikesCountCorr, CountCorr); //Compute Corr.
-						//std::cout << ".\n";
-						switch (ResamplingMethod)
-						{
-
-						case SHUFFLING:
-							SpikeTrainShuffle(*RefTrialTrain, *TarTrialTrain, SpikesCountResampled, CountRes); //Compute Corr shuffling method.
-							break;
-
-						case JITTERING:
-							SpikeTrainJitter(*RefTrialTrain, *TarTrialTrain, SpikesCountResampled, CountRes); //Compute Corr Jittering method.
-							break;
-
-						default:
-							SpikeTrainShuffle(*RefTrialTrain, *TarTrialTrain, SpikesCountResampled, CountRes);
-							break;
-						}
-					}
-				}
-
-				//Mean and STD of the matrix and vectors of the choosen resampling method.///////////
-				CountRes /= ResampledSets; //This needs to be divided into ResampledSets because that is the size of the Matrix, is not a vector anymore.
-				for (int Bin = 0; Bin < NoBins; Bin++)
-				{
-					auto STDCount = SpikesSTDCount.begin();
-					auto STDCountEnd = SpikesSTDCount.end();
-
-					for (auto BinVec = SpikesCountResampled.cbegin(), BinVecEnd = SpikesCountResampled.cend();
-						BinVec < BinVecEnd;
-						++BinVec, ++STDCount)
-					{
-						*STDCount = *(BinVec->begin() + Bin);
-					}
-
-					//Math for the params that are needed by the Z Test
-					double BinMean = (double)std::accumulate(STDCount, STDCountEnd, 0) / (double)ResampledSets;
-
-					//Necesary check for unpopulated resampled correlograms. false positives can be assumed if this is not checked, although this is not the best way to code it. Bad design.
-					if (BinMean == 0)
-						GoodResampling = false; break;
-
-					double BinVariance = 0.0;
-
-					for (STDCount = SpikesSTDCount.begin(); STDCount < STDCountEnd; ++STDCount)
-					{
-						BinVariance += ((double)(*STDCount) - BinMean) * ((double)(*STDCount) - BinMean);
-					}
-					BinVariance /= ((double)ResampledSets - 1.0); // this is Variance over N. Matlab uses Bessels correction to compute STD.
-
-					*(SpikesSTDResampled.begin() + Bin) = std::sqrt(BinVariance) / (double)CountRes; // Stand deviation to my STD vector.
-					*(SpikesPResampled.begin() + Bin) = BinMean / (double)CountRes;
-
-					STDCount = SpikesSTDCount.begin(); // Reseting the iterator of the vector.
-				}
-				/////////////////////////////////////////////////////////////////////////////////////
-
-
-				if (GoodResampling && CountCorr != 0)
-				{
-
-					double MeanSTD = (double)std::accumulate(SpikesSTDResampled.begin(), SpikesSTDResampled.end(), 0.0) / (double)SpikesSTDResampled.size();
-
-					//Fill the Probability Vector.
-					std::transform(SpikesCountCorr.begin(), SpikesCountCorr.end(),
-						SpikesPCorr.begin(),
-						[&CountCorr](unsigned int& Bin) -> double { return (double)Bin / (double)CountCorr; });
-
-					//Z Transform.
-					std::transform(SpikesPCorr.begin(), SpikesPCorr.end(), SpikesPResampled.begin(), SpikesPCorr.begin(),
-						[&MeanSTD](double& PBin, double& MeanBin) -> double { return (PBin - MeanBin) / MeanSTD; });
-
-
-					//Writing Significant Correlations to File.
-					bool LeadEx = std::any_of(SpikesPCorr.end() - (SpikesPCorr.size() / 2) + BinExcluded, SpikesPCorr.end(),
-						[&ZThresh](double& ZValue) {return ZValue > ZThresh; });
-					bool LagEx = std::any_of(SpikesPCorr.begin(), SpikesPCorr.begin() + (SpikesPCorr.size() / 2) - BinExcluded,
-						[&ZThresh](double& ZValue) {return ZValue > ZThresh; });
-					bool LeadIn = std::any_of(SpikesPCorr.end() - (SpikesPCorr.size() / 2) + BinExcluded, SpikesPCorr.end(),
-						[&ZThresh](double& ZValue) {return ZValue < -ZThresh; });
-					bool LagIn = std::any_of(SpikesPCorr.begin(), SpikesPCorr.begin() + (SpikesPCorr.size() / 2) - BinExcluded,
-						[&ZThresh](double& ZValue) {return ZValue < -ZThresh; });
-
-					if (LeadEx && LagEx)
-					{
-						unsigned short CorrType = 1;
-						CorrFile.write(reinterpret_cast<char*>(&Stimulus), 2);
-						CorrFile.write(reinterpret_cast<char*>(&CorrType), 2);
-						CorrFile.write(reinterpret_cast<char*>(&ReferenceUnit), 2);
-						CorrFile.write(reinterpret_cast<char*>(&TargetUnit), 2);
-					}
-					else if (LeadEx)
-					{
-						unsigned short CorrType = 2;
-						CorrFile.write(reinterpret_cast<char*>(&Stimulus), 2);
-						CorrFile.write(reinterpret_cast<char*>(&CorrType), 2);
-						CorrFile.write(reinterpret_cast<char*>(&ReferenceUnit), 2);
-						CorrFile.write(reinterpret_cast<char*>(&TargetUnit), 2);
-					}
-					else if (LagEx)
-					{
-						unsigned short CorrType = 3;
-						CorrFile.write(reinterpret_cast<char*>(&Stimulus), 2);
-						CorrFile.write(reinterpret_cast<char*>(&CorrType), 2);
-						CorrFile.write(reinterpret_cast<char*>(&ReferenceUnit), 2);
-						CorrFile.write(reinterpret_cast<char*>(&TargetUnit), 2);
-					}
-
-					if (LeadIn && LagIn)
-					{
-						unsigned short CorrType = 4;
-						CorrFile.write(reinterpret_cast<char*>(&Stimulus), 2);
-						CorrFile.write(reinterpret_cast<char*>(&CorrType), 2);
-						CorrFile.write(reinterpret_cast<char*>(&ReferenceUnit), 2);
-						CorrFile.write(reinterpret_cast<char*>(&TargetUnit), 2);
-					}
-					else if (LeadIn)
-					{
-						unsigned short CorrType = 5;
-						CorrFile.write(reinterpret_cast<char*>(&Stimulus), 2);
-						CorrFile.write(reinterpret_cast<char*>(&CorrType), 2);
-						CorrFile.write(reinterpret_cast<char*>(&ReferenceUnit), 2);
-						CorrFile.write(reinterpret_cast<char*>(&TargetUnit), 2);
-					}
-					else if (LagIn)
-					{
-						unsigned short CorrType = 6;
-						CorrFile.write(reinterpret_cast<char*>(&Stimulus), 2);
-						CorrFile.write(reinterpret_cast<char*>(&CorrType), 2);
-						CorrFile.write(reinterpret_cast<char*>(&ReferenceUnit), 2);
-						CorrFile.write(reinterpret_cast<char*>(&TargetUnit), 2);
-					}
-
-					if ((LeadIn || LagIn) && (LeadEx || LagEx))
-					{
-						unsigned short CorrType = 7;
-						CorrFile.write(reinterpret_cast<char*>(&Stimulus), 2);
-						CorrFile.write(reinterpret_cast<char*>(&CorrType), 2);
-						CorrFile.write(reinterpret_cast<char*>(&ReferenceUnit), 2);
-						CorrFile.write(reinterpret_cast<char*>(&TargetUnit), 2);
-					}
-				}
-
-				//Reseting Count Vectors and Matrix;
-				std::fill(SpikesCountCorr.begin(), SpikesCountCorr.end(), 0);
-
-				std::for_each(SpikesCountResampled.begin(), SpikesCountResampled.end(),
-					[](std::vector<unsigned int>& BinVec)
-					{
-						std::fill(BinVec.begin(), BinVec.end(), 0);
-					});
-
-				std::cout << "Stimulus " << Stimulus << ". Finished reference unit " << ReferenceUnit << " vs target unit " << TargetUnit << ".\n";
-			}
-		}
-	}
-}
-
 void Statistician::RunSingleThread(int ResampledSets, unsigned char ResamplingMethod, double ZThresh, bool ExcZeroLag)
 {
 	for (int Stimulus = 0; Stimulus < OdorEx.GetStimuli(); Stimulus++)
@@ -486,10 +281,14 @@ void Statistician::RunThreadPool(int ResampledSets, unsigned char ResamplingMeth
 	while (true)
 	{
 		//This while loop freezes at the end, I need to implement in another way, but my thread pool works as the single thread.
-		for (CurrentThread = ThreadPool.begin(); CurrentThread < EndThread; ++CurrentThread)
+		if (std::all_of(ThreadPool.begin(), ThreadPool.end(),
+			[](std::future<void>& CurrentThread) {return CurrentThread.valid(); }))
 		{
-			if (CurrentThread->valid())
+			for (CurrentThread = ThreadPool.begin(); CurrentThread < EndThread; ++CurrentThread)
+			{
 				CurrentThread->get();
+			}
+			return;
 		}
 	}
 }
@@ -502,7 +301,6 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 	//it is a posibility to implement fujisawa statistics but I need to try them first on MATLAB.
 
 
-	mu.lock();
 	//Locked code to access common memory between threads
 	int UnitsRef = OdorEx.GetUnitsRef();
 	int UnitsTar = OdorEx.GetUnitsTar();
@@ -510,13 +308,14 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 	auto SLSRB = StimLockedSpikesRef.cbegin();
 	auto SLSTB = StimLockedSpikesTar.cbegin();
 
+	mu.lock();
 	std::cout << "Stimulus: " << Stimulus +1 << ", Ref: " << UnitsRef 
 		<< ", Tar: " << UnitsTar << ", Trials: " << Trials << "\n";
+	mu.unlock();
 
 	//Put this thread to sleep just for debugging puposes.
 	//std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
-	mu.unlock();
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	std::vector<unsigned int> SpikesCountCorr(NoBins); //Main raw correlation Vector
@@ -608,8 +407,10 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 
 				//Necesary check for unpopulated resampled correlograms. false positives can be assumed if this is not checked, although this is not the best way to code it. Bad design.
 				if (BinMean == 0)
+				{
 					GoodResampling = false;
-
+					break;
+				}
 
 				double BinVariance = 0.0;
 
@@ -621,6 +422,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 
 				*(SpikesSTDResampled.begin() + Bin) = std::sqrt(BinVariance) / (double)CountRes; // Stand deviation to my STD vector.
 				*(SpikesPResampled.begin() + Bin) = BinMean / (double)CountRes;
+
 
 				STDCount = SpikesSTDCount.begin(); // Reseting the iterator of the vector.
 			}
@@ -640,7 +442,6 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 				std::transform(SpikesPCorr.begin(), SpikesPCorr.end(), SpikesPResampled.begin(), SpikesPCorr.begin(),
 					[&MeanSTD](double& PBin, double& MeanBin) -> double { return (PBin - MeanBin) / MeanSTD; });
 
-
 				//Writing Significant Correlations to File.
 				bool LeadEx = std::any_of(SpikesPCorr.end() - (SpikesPCorr.size() / 2) + BinExcluded, SpikesPCorr.end(),
 					[&ZThresh](double& ZValue) {return ZValue > ZThresh; });
@@ -651,7 +452,6 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 				bool LagIn = std::any_of(SpikesPCorr.begin(), SpikesPCorr.begin() + (SpikesPCorr.size() / 2) - BinExcluded,
 					[&ZThresh](double& ZValue) {return ZValue < -ZThresh; });
 
-
 				if (LeadEx && LagEx)
 				{
 					//Comented code for binary files
@@ -661,33 +461,33 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 					CorrFile.write(reinterpret_cast<char*>(&TargetUnit), 2);*/
 
 					//Code to store in txt files.
-					CorrFile << 1 << ", " << ReferenceUnit << ", " << TargetUnit << "\n";
+					WriteToFileWorker(1, CorrFile,  ReferenceUnit, TargetUnit, SpikesCountCorr);
 				}
 				else if (LeadEx)
 				{
-					CorrFile << 2 << ", " << ReferenceUnit << ", " << TargetUnit << "\n";
+					WriteToFileWorker(2, CorrFile, ReferenceUnit, TargetUnit, SpikesCountCorr);
 				}
 				else if (LagEx)
 				{
-					CorrFile << 3 << ", " << ReferenceUnit << ", " << TargetUnit << "\n";
+					WriteToFileWorker(3, CorrFile, ReferenceUnit, TargetUnit, SpikesCountCorr);
 				}
 
 				if (LeadIn && LagIn)
 				{
-					CorrFile << 4 << ", " << ReferenceUnit << ", " << TargetUnit << "\n";
+					WriteToFileWorker(4, CorrFile, ReferenceUnit, TargetUnit, SpikesCountCorr);
 				}
 				else if (LeadIn)
 				{
-					CorrFile << 5 << ", " << ReferenceUnit << ", " << TargetUnit << "\n";
+					WriteToFileWorker(5, CorrFile, ReferenceUnit, TargetUnit, SpikesCountCorr);
 				}
 				else if (LagIn)
 				{
-					CorrFile << 6 << ", " << ReferenceUnit << ", " << TargetUnit << "\n";
+					WriteToFileWorker(6, CorrFile, ReferenceUnit, TargetUnit, SpikesCountCorr);
 				}
 
 				if ((LeadIn || LagIn) && (LeadEx || LagEx))
 				{
-					CorrFile << 7 << ", " << ReferenceUnit << ", " << TargetUnit << "\n";
+					WriteToFileWorker(7, CorrFile, ReferenceUnit, TargetUnit, SpikesCountCorr);
 				}
 			}
 
@@ -706,7 +506,6 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 		}
 	}
 
-
 	if (CorrFile.bad())
 		std::cout << "bad";
 
@@ -721,7 +520,6 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 		CorrFile.close();
 		mu.lock();
 		std::cout << "Data file was closed successfully\n";
-		//std::cin.get();
 		mu.unlock();
 	}
 
@@ -731,6 +529,19 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 		std::cout << "stream state is eofbit\n";
 		mu.unlock();
 	}
+}
 
+void Statistician::WriteToFileWorker(int CorrType, std::ofstream& CorrFile, unsigned short ReferenceUnit, unsigned short TargetUnit, std::vector<unsigned int>& BinVec)
+{
+	mu.lock();
 
+	CorrFile << CorrType << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
+	std::for_each(BinVec.begin(), BinVec.end(),
+		[&CorrFile](unsigned int& Bin)
+		{
+			CorrFile << Bin << ", ";
+		});
+	CorrFile << "\n";
+
+	mu.unlock();
 }

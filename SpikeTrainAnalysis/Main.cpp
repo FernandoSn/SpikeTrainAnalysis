@@ -21,7 +21,7 @@ int main()
 
 	//Statistician ctor interval is in sec, binsize and epoch is in ms
 	bool IsSpontaneous = false; //For Spontanepus activity correlations. if this is false mutlithreading and PREX should be false.
-	bool MultiThreading = false; 
+	bool MultiThreading = true; 
 	bool PREX = true; //Use first respiration, if its false its gonna use the Stimulus on and off.
 	std::string FileName("Prueba.dat"); //Name of the File that was created with Matlab code.
 	int BinSize = 1; //Miliseconds.
