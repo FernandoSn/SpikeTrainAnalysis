@@ -20,10 +20,10 @@ int main()
 	//IMPORTANT JITTERING SHOULD ONLY BE USED WITH 1 MS BINS AND 5 MS EPOCH. IF YOU WANT TO USE JITTERING WITH OTHER PARAMS YOU NEED TO MODIFY THE SOURCE CODE.
 
 	//Statistician ctor interval is in sec, binsize and epoch is in ms
-	bool IsSpontaneous = false; //For Spontanepus activity correlations. if this is false mutlithreading and PREX should be false.
-	bool MultiThreading = true; 
-	bool PREX = true; //Use first respiration, if its false its gonna use the Stimulus on and off.
-	std::string FileName("Prueba.dat"); //Name of the File that was created with Matlab code.
+	bool IsSpontaneous = true; //For Spontanepus activity correlations. if this is false mutlithreading and PREX should be false.
+	bool MultiThreading = false; 
+	bool PREX = false; //Use first respiration, if its false its gonna use the Stimulus on and off.
+	std::string FileName("PfCx.dat"); //Name of the File that was created with Matlab code.
 	int BinSize = 1; //Miliseconds.
 	int Epoch = 5; //Miliseconds. Epoch for the analysis.
 	double Interval = 1.0; //Seconds. Interval used for statician ctor with PREX enabled.
