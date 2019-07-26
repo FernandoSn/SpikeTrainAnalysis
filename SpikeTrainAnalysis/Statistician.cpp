@@ -452,6 +452,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 				bool LagIn = std::any_of(SpikesPCorr.begin(), SpikesPCorr.begin() + (SpikesPCorr.size() / 2) - BinExcluded,
 					[&ZThresh](double& ZValue) {return ZValue < -ZThresh; });
 
+				mu.lock();
 				if (LeadEx && LagEx)
 				{
 					//Comented code for binary files
@@ -461,36 +462,64 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 					CorrFile.write(reinterpret_cast<char*>(&TargetUnit), 2);*/
 
 					//Code to store in txt files.
-					WriteToFileWorker(1, CorrFile,  ReferenceUnit, TargetUnit, SpikesCountCorr);
+					CorrFile << 1 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
+					WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
+					WriteToFileWorkerT(CorrFile,  SpikesPCorr,1);
+					WriteToFileWorkerT(CorrFile, SpikesPResampled, CountRes);
+					CorrFile << MeanSTD << ", " << "\n";
 				}
 				else if (LeadEx)
 				{
-					WriteToFileWorker(2, CorrFile, ReferenceUnit, TargetUnit, SpikesCountCorr);
+					CorrFile << 2 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
+					WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
+					WriteToFileWorkerT(CorrFile, SpikesPCorr, 1);
+					WriteToFileWorkerT(CorrFile, SpikesPResampled, CountRes);
+					CorrFile << MeanSTD << ", " << "\n";
 				}
 				else if (LagEx)
 				{
-					WriteToFileWorker(3, CorrFile, ReferenceUnit, TargetUnit, SpikesCountCorr);
+					CorrFile << 3 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
+					WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
+					WriteToFileWorkerT(CorrFile, SpikesPCorr, 1);
+					WriteToFileWorkerT(CorrFile, SpikesPResampled, CountRes);
+					CorrFile << MeanSTD << ", " << "\n";
 				}
 
 				if (LeadIn && LagIn)
 				{
-					WriteToFileWorker(4, CorrFile, ReferenceUnit, TargetUnit, SpikesCountCorr);
+					CorrFile << 4 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
+					WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
+					WriteToFileWorkerT(CorrFile, SpikesPCorr, 1);
+					WriteToFileWorkerT(CorrFile, SpikesPResampled, CountRes);
+					CorrFile << MeanSTD << ", " << "\n";
 				}
 				else if (LeadIn)
 				{
-					WriteToFileWorker(5, CorrFile, ReferenceUnit, TargetUnit, SpikesCountCorr);
+					CorrFile << 5 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
+					WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
+					WriteToFileWorkerT(CorrFile, SpikesPCorr, 1);
+					WriteToFileWorkerT(CorrFile, SpikesPResampled, CountRes);
+					CorrFile << MeanSTD << ", " << "\n";
 				}
 				else if (LagIn)
 				{
-					WriteToFileWorker(6, CorrFile, ReferenceUnit, TargetUnit, SpikesCountCorr);
+					CorrFile << 6 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
+					WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
+					WriteToFileWorkerT(CorrFile, SpikesPCorr, 1);
+					WriteToFileWorkerT(CorrFile, SpikesPResampled, CountRes);
+					CorrFile << MeanSTD << ", " << "\n";
 				}
 
 				if ((LeadIn || LagIn) && (LeadEx || LagEx))
 				{
-					WriteToFileWorker(7, CorrFile, ReferenceUnit, TargetUnit, SpikesCountCorr);
+					CorrFile << 7 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
+					WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
+					WriteToFileWorkerT(CorrFile, SpikesPCorr, 1);
+					WriteToFileWorkerT(CorrFile, SpikesPResampled, CountRes);
+					CorrFile << MeanSTD << ", " << "\n";
 				}
+				mu.unlock();
 			}
-
 			//Reseting Count Vectors and Matrix;
 			std::fill(SpikesCountCorr.begin(), SpikesCountCorr.end(), 0);
 
@@ -531,17 +560,12 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 	}
 }
 
-void Statistician::WriteToFileWorker(int CorrType, std::ofstream& CorrFile, unsigned short ReferenceUnit, unsigned short TargetUnit, std::vector<unsigned int>& BinVec)
+void Statistician::WriteToFileWorker(std::ofstream& CorrFile, std::vector<double>& CorrVec, uint32_t CountCorr)
 {
-	mu.lock();
-
-	CorrFile << CorrType << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
-	std::for_each(BinVec.begin(), BinVec.end(),
-		[&CorrFile](unsigned int& Bin)
+	std::for_each(CorrVec.begin(), CorrVec.end(),
+		[&CorrFile,&CountCorr](double& Bin)
 		{
-			CorrFile << Bin << ", ";
+			CorrFile << Bin * CountCorr << ", ";
 		});
-	CorrFile << "\n";
-
-	mu.unlock();
+	CorrFile << CountCorr << ", ";
 }

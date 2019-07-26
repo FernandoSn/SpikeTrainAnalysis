@@ -23,7 +23,18 @@ private:
 	void SpikeTrainJitter(const std::vector<double>& reference, std::vector<double> target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count);
 	void SpikeTrainShuffle(const std::vector<double>& reference, std::vector<double> target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count);
 	void MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, unsigned char ResamplingMethod, double ZThresh, bool ExcZeroLag);
-	void WriteToFileWorker(int CorrType, std::ofstream& CorrFile, unsigned short ReferenceUnit, unsigned short TargetUnit, std::vector<unsigned int>& BinVec);
+	void WriteToFileWorker(std::ofstream& CorrFile, std::vector<double>& CorrVec, uint32_t CorrCount);
+
+	template <typename T>
+	void WriteToFileWorkerT(std::ofstream& CorrFile, std::vector<T>& CorrVec, uint32_t CountCorr)
+	{
+		std::for_each(CorrVec.begin(), CorrVec.end(),
+			[&CorrFile, &CountCorr](T& Bin)
+			{
+				CorrFile << Bin * CountCorr << ", ";
+			});
+		CorrFile << CountCorr << ", ";
+	}
 
 	//void SpikeTrainShift(); // I dont know if Im gonna implement shift, seems that is not very useful for my actual experiment.
 
