@@ -11,6 +11,11 @@
 #include <iterator>
 int main()
 {
+
+
+	int asd = std::round( (1000 * 0.01) / 2);
+
+
 	//This is not professional coding. to my taste class are well designed maybe the thread pool or MasterCorr on Statistician
 	//needs more work because a have a ton of code in one method but its acceptable.
 	//The part that is really bad is the user input, first to input different parameters you need to edit this code, you dont have IO.
@@ -45,7 +50,7 @@ int main()
 	if (PREX)
 	{
 		std::cout << " Constructing with PREX with " << Interval << " sec interval"<<".\n";
-		Statistician SpikeJuggler(FileName, Interval, BinSize, Epoch);
+		Statistician SpikeJuggler(FileName, BinSize, Epoch, Interval);
 		if (MultiThreading)
 		{
 			//this is just a warning it doesnt have any effect on the flow of the program.

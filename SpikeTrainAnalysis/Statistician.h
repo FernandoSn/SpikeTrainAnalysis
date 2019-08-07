@@ -11,7 +11,7 @@ class Statistician
 public:
 
 	Statistician(std::string FileName, int BinSize, int Epoch, bool IsSpontaneous);
-	Statistician(std::string FileName, double Interval, int BinSize, int Epoch);
+	Statistician(std::string FileName, int BinSize, int Epoch, double Interval);
 	void RunThreadPool(int ResampledSets, unsigned char ResamplingMethod, double ZThresh, bool ExcZeroLag);
 	void RunSingleThread(int ResampledSets, unsigned char ResamplingMethod, double ZThresh, bool ExcZeroLag);
 
@@ -24,6 +24,9 @@ private:
 	void SpikeTrainShuffle(const std::vector<double>& reference, std::vector<double> target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count);
 	void MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, unsigned char ResamplingMethod, double ZThresh, bool ExcZeroLag);
 	void WriteToFileWorker(std::ofstream& CorrFile, std::vector<double>& CorrVec, uint32_t CorrCount);
+	bool PrepZTest(std::vector<unsigned int>& SpikesSTDCount, std::vector<std::vector<unsigned int>>& SpikesCountResampled, std::vector<double>& SpikesSTDResampled, std::vector<double>& SpikesPResampled, int ResampledSets, uint32_t CountRes);
+
+	bool PrepPointwise(std::vector<unsigned int>& SpikesSTDCount, std::vector<std::vector<unsigned int>>& SpikesCountResampled, std::vector<double>& SpikesSTDResampled, std::vector<double>& SpikesPResampled, int ResampledSets, uint32_t CountRes, double PVal);
 
 	template <typename T>
 	void WriteToFileWorkerT(std::ofstream& CorrFile, std::vector<T>& CorrVec, uint32_t CountCorr)
@@ -47,11 +50,11 @@ private:
 	std::vector<std::vector<double>> StimLockedSpikesRef;
 	std::vector<std::vector<double>> StimLockedSpikesTar;
 
-	int BinSize;
-	int Epoch;
-	int NoBins;
-	double BinSizeSec;
-	double EpochSec;
+	std::atomic<int> BinSize;
+	std::atomic<int> Epoch;
+	std::atomic<int> NoBins;
+	std::atomic<double> BinSizeSec;
+	std::atomic<double> EpochSec;
 
 	std::random_device Rd;
 	std::default_random_engine Generator;

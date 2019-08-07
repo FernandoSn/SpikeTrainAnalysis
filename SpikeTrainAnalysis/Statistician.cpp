@@ -36,7 +36,7 @@ Statistician::Statistician(std::string FileName, int BinSize, int Epoch, bool Is
 
 }
 
-Statistician::Statistician(std::string FileName, double Interval, int BinSize, int Epoch)
+Statistician::Statistician(std::string FileName, int BinSize, int Epoch, double Interval)
 	:
 	BinSize(BinSize),
 	Epoch(Epoch),
@@ -207,7 +207,6 @@ void Statistician::SpikeTrainJitter(const std::vector<double>& reference, std::v
 
 	for (auto Spikes = SpikesMatrix.begin(), SMEnd = SpikesMatrix.end(); Spikes < SMEnd; ++Spikes)
 	{
-
 		double Jitter = distribution(Generator);
 
 		std::for_each(target.begin(),
@@ -256,15 +255,15 @@ void Statistician::SpikeTrainShuffle(const std::vector<double>& reference, std::
 	}
 }
 
-void Statistician::RunSingleThread(int ResampledSets, unsigned char ResamplingMethod, double ZThresh, bool ExcZeroLag)
+void Statistician::RunSingleThread(int ResampledSets, unsigned char ResamplingMethod, double ZorPVal, bool ExcZeroLag)
 {
 	for (int Stimulus = 0; Stimulus < OdorEx.GetStimuli(); Stimulus++)
 	{
-		MasterSpikeCrossCorrWorker(Stimulus, ResampledSets, ResamplingMethod, ZThresh, ExcZeroLag);
+		MasterSpikeCrossCorrWorker(Stimulus, ResampledSets, ResamplingMethod, ZorPVal, ExcZeroLag);
 	}
 }
 
-void Statistician::RunThreadPool(int ResampledSets, unsigned char ResamplingMethod, double ZThresh, bool ExcZeroLag)
+void Statistician::RunThreadPool(int ResampledSets, unsigned char ResamplingMethod, double ZorPVal, bool ExcZeroLag)
 {
 	//ThreadPool with n threads. n = number of odors.
 	std::vector<std::future<void>> ThreadPool(OdorEx.GetStimuli());
@@ -275,7 +274,7 @@ void Statistician::RunThreadPool(int ResampledSets, unsigned char ResamplingMeth
 	for (int Stimulus = 0; CurrentThread < EndThread; ++CurrentThread, Stimulus++)
 	{
 		*CurrentThread = std::async(std::launch::async, &Statistician::MasterSpikeCrossCorrWorker,
-			this, Stimulus, ResampledSets, ResamplingMethod, ZThresh, ExcZeroLag);
+			this, Stimulus, ResampledSets, ResamplingMethod, ZorPVal, ExcZeroLag);
 	}
 
 	while (true)
@@ -293,13 +292,14 @@ void Statistician::RunThreadPool(int ResampledSets, unsigned char ResamplingMeth
 	}
 }
 
-void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, unsigned char ResamplingMethod, double ZThresh, bool ExcZeroLag)
+void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, unsigned char ResamplingMethod, double ZorPVal, bool ExcZeroLag)
 {
 
 	//NOTE: Im not convienced that STD matrices are the best way to deal with the problem. They are well allocated but anyway they may impact the performance,
 	//STD problem may be solved with the use of other statistics instead of Z test (Fujisawa, 2008).
 	//it is a posibility to implement fujisawa statistics but I need to try them first on MATLAB.
 
+	mu.lock();
 
 	//Locked code to access common memory between threads
 	int UnitsRef = OdorEx.GetUnitsRef();
@@ -308,15 +308,11 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 	auto SLSRB = StimLockedSpikesRef.cbegin();
 	auto SLSTB = StimLockedSpikesTar.cbegin();
 
-	mu.lock();
 	std::cout << "Stimulus: " << Stimulus +1 << ", Ref: " << UnitsRef 
 		<< ", Tar: " << UnitsTar << ", Trials: " << Trials << "\n";
-	mu.unlock();
 
 	//Put this thread to sleep just for debugging puposes.
 	//std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-
-
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	std::vector<unsigned int> SpikesCountCorr(NoBins); //Main raw correlation Vector
 	std::vector<double> SpikesPCorr(NoBins); // Vector for probabilities and Z scores. P stands for probability.
@@ -325,6 +321,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 	std::vector<unsigned int> SpikesSTDCount(ResampledSets);
 	std::vector<double> SpikesSTDResampled(NoBins); // STD vector. STD is obtained across ResampledSets of mean trials.
 	std::vector<double> SpikesPResampled(NoBins); // Vector for probabilities scores.
+	mu.unlock();
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	//File for storing the sig data.
@@ -356,7 +353,6 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 			auto TarTrialTrain = TarTrain; //Aux vars to prevent modification of original vars.
 			unsigned int CountCorr = 0;
 			unsigned int CountRes = 0;
-			bool GoodResampling = true;
 
 			//Trial Loop/////////////////////////////////////////////////////////////////////////
 			for (int Trial = 0; Trial < Trials;
@@ -389,44 +385,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 			
 			//Mean and STD of the matrix and vectors of the choosen resampling method.///////////
 			CountRes /= ResampledSets; //This needs to be divided into ResampledSets because that is the size of the Matrix, is not a vector anymore.
-			for (int Bin = 0; Bin < NoBins; Bin++)
-			{
-				//Looping through the Matrix and filling the STDCount Vector.
-				auto STDCount = SpikesSTDCount.begin();
-				auto STDCountEnd = SpikesSTDCount.end();
-				for (auto BinVec = SpikesCountResampled.cbegin(), BinVecEnd = SpikesCountResampled.cend();
-					BinVec < BinVecEnd;
-					++BinVec, ++STDCount)
-				{
-					*STDCount = *(BinVec->begin() + Bin);
-					
-				}
-
-				//Math for the params that are needed by the Z Test
-				double BinMean = (double)std::accumulate(SpikesSTDCount.begin(), SpikesSTDCount.end(), 0) / (double)ResampledSets;
-
-				//Necesary check for unpopulated resampled correlograms. false positives can be assumed if this is not checked, although this is not the best way to code it. Bad design.
-				if (BinMean == 0)
-				{
-					GoodResampling = false;
-					break;
-				}
-
-				double BinVariance = 0.0;
-
-				for (STDCount = SpikesSTDCount.begin(); STDCount < STDCountEnd; ++STDCount)
-				{
-					BinVariance += ((double)(*STDCount) - BinMean) * ((double)(*STDCount) - BinMean);
-				}
-				BinVariance /= ((double)ResampledSets-1.0); // this is Variance over N. Matlab uses Bessels correction to compute STD. Actually Im gonna use Bessels correction.
-
-				*(SpikesSTDResampled.begin() + Bin) = std::sqrt(BinVariance) / (double)CountRes; // Stand deviation to my STD vector.
-				*(SpikesPResampled.begin() + Bin) = BinMean / (double)CountRes;
-
-
-				STDCount = SpikesSTDCount.begin(); // Reseting the iterator of the vector.
-			}
-			/////////////////////////////////////////////////////////////////////////////////////
+			bool GoodResampling = PrepZTest(SpikesSTDCount, SpikesCountResampled, SpikesSTDResampled, SpikesPResampled, ResampledSets, CountRes);
 
 			if (GoodResampling && (CountCorr != 0))
 			{
@@ -444,13 +403,13 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 
 				//Writing Significant Correlations to File.
 				bool LeadEx = std::any_of(SpikesPCorr.end() - (SpikesPCorr.size() / 2) + BinExcluded, SpikesPCorr.end(),
-					[&ZThresh](double& ZValue) {return ZValue > ZThresh; });
+					[&ZorPVal](double& ZorRVal) {return ZorRVal > ZorPVal; });
 				bool LagEx = std::any_of(SpikesPCorr.begin(), SpikesPCorr.begin() + (SpikesPCorr.size() / 2) - BinExcluded,
-					[&ZThresh](double& ZValue) {return ZValue > ZThresh; });
+					[&ZorPVal](double& ZorRVal) {return ZorRVal > ZorPVal; });
 				bool LeadIn = std::any_of(SpikesPCorr.end() - (SpikesPCorr.size() / 2) + BinExcluded, SpikesPCorr.end(),
-					[&ZThresh](double& ZValue) {return ZValue < -ZThresh; });
+					[&ZorPVal](double& ZorRVal) {return ZorRVal < -ZorPVal; });
 				bool LagIn = std::any_of(SpikesPCorr.begin(), SpikesPCorr.begin() + (SpikesPCorr.size() / 2) - BinExcluded,
-					[&ZThresh](double& ZValue) {return ZValue < -ZThresh; });
+					[&ZorPVal](double& ZorRVal) {return ZorRVal < -ZorPVal; });
 
 				mu.lock();
 				if (LeadEx && LagEx)
@@ -568,4 +527,92 @@ void Statistician::WriteToFileWorker(std::ofstream& CorrFile, std::vector<double
 			CorrFile << Bin * CountCorr << ", ";
 		});
 	CorrFile << CountCorr << ", ";
+}
+
+bool Statistician::PrepZTest(std::vector<unsigned int>& SpikesSTDCount, std::vector<std::vector<unsigned int>>& SpikesCountResampled,
+	std::vector<double>& SpikesSTDResampled, std::vector<double>& SpikesPResampled, int ResampledSets, uint32_t CountRes )
+{
+	for (int Bin = 0; Bin < NoBins; Bin++)
+	{
+		//Looping through the Matrix and filling the STDCount Vector.
+		auto STDCount = SpikesSTDCount.begin();
+		auto STDCountEnd = SpikesSTDCount.end();
+		for (auto BinVec = SpikesCountResampled.cbegin(), BinVecEnd = SpikesCountResampled.cend();
+			BinVec < BinVecEnd;
+			++BinVec, ++STDCount)
+		{
+			*STDCount = *(BinVec->begin() + Bin);
+
+		}
+
+		//Math for the params that are needed by the Z Test
+		double BinMean = (double)std::accumulate(SpikesSTDCount.begin(), SpikesSTDCount.end(), 0) / (double)ResampledSets;
+
+		//Necesary check for unpopulated resampled correlograms. false positives can be assumed if this is not checked, although this is not the best way to code it. Bad design.
+		if (BinMean == 0)
+		{
+			return false; //Return false because is a badresampling
+		}
+
+		double BinVariance = 0.0;
+
+		for (STDCount = SpikesSTDCount.begin(); STDCount < STDCountEnd; ++STDCount)
+		{
+			BinVariance += ((double)(*STDCount) - BinMean) * ((double)(*STDCount) - BinMean);
+		}
+		BinVariance /= ((double)ResampledSets - 1.0); // this is Variance over N. Matlab uses Bessels correction to compute STD. Actually Im gonna use Bessels correction.
+
+		*(SpikesSTDResampled.begin() + Bin) = std::sqrt(BinVariance) / (double)CountRes; // Stand deviation to my STD vector.
+		*(SpikesPResampled.begin() + Bin) = BinMean / (double)CountRes;
+
+
+		STDCount = SpikesSTDCount.begin(); // Reseting the iterator of the vector.
+	}
+
+	return true; //Return true if all the code is excecuted.
+}
+
+bool Statistician::PrepPointwise(std::vector<unsigned int>& SpikesSTDCount, std::vector<std::vector<unsigned int>>& SpikesCountResampled,
+	std::vector<double>& SpikesSTDResampled, std::vector<double>& SpikesPResampled, int ResampledSets, uint32_t CountRes,double PVal)
+{
+	for (int Bin = 0; Bin < NoBins; Bin++)
+	{
+		//Looping through the Matrix and filling the STDCount Vector.
+		auto STDCount = SpikesSTDCount.begin();
+		auto STDCountEnd = SpikesSTDCount.end();
+		for (auto BinVec = SpikesCountResampled.cbegin(), BinVecEnd = SpikesCountResampled.cend();
+			BinVec < BinVecEnd;
+			++BinVec, ++STDCount)
+		{
+			*STDCount = *(BinVec->begin() + Bin);
+
+		}
+
+		std::sort(SpikesSTDCount.begin(), SpikesSTDCount.end());
+
+		//Math for the params that are needed by the Z Test
+		double BinMean = (double)std::accumulate(SpikesSTDCount.begin(), SpikesSTDCount.end(), 0) / (double)ResampledSets;
+
+		//Necesary check for unpopulated resampled correlograms. false positives can be assumed if this is not checked, although this is not the best way to code it. Bad design.
+		if (BinMean == 0)
+		{
+			return false; //Return false because is a badresampling
+		}
+
+		double BinVariance = 0.0;
+
+		for (STDCount = SpikesSTDCount.begin(); STDCount < STDCountEnd; ++STDCount)
+		{
+			BinVariance += ((double)(*STDCount) - BinMean) * ((double)(*STDCount) - BinMean);
+		}
+		BinVariance /= ((double)ResampledSets - 1.0); // this is Variance over N. Matlab uses Bessels correction to compute STD. Actually Im gonna use Bessels correction.
+
+		*(SpikesSTDResampled.begin() + Bin) = std::sqrt(BinVariance) / (double)CountRes; // Stand deviation to my STD vector.
+		*(SpikesPResampled.begin() + Bin) = BinMean / (double)CountRes;
+
+
+		STDCount = SpikesSTDCount.begin(); // Reseting the iterator of the vector.
+	}
+
+	return true; //Return true if all the code is excecuted.
 }
