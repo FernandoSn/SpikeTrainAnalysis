@@ -32,7 +32,8 @@ int main()
 	int BinSize = 1; //Miliseconds.
 	int Epoch = 5; //Miliseconds. Epoch for the analysis.
 	double Interval = 1.0; //Seconds. Interval used for statician ctor with PREX enabled.
-	unsigned char ResamplingMethod = JITTERING; //Select the resampling Method.
+	uint8_t ResamplingMethod = JITTERING; //Select the resampling Method.
+	uint8_t StatTest = ZTEST; //Select the Statistics.
 	int ResampledSets = 1000; //Recommended 100 for shuffle (Burgos-Robles,2017), 1000 for jittering (Fujisawa,2008)
 	double ZThresh = 3.89; //You should calculate this threshold with a two tail Z table. Divide 0.01 / NoBins and then look for the corresponding Z value.
 	//p < 0.01 : 3.23 for 8 bins, 3.29 for 10 bins.... p < 0.001 3.84 for 8 bins, 3.89 for 10 bins
@@ -57,13 +58,13 @@ int main()
 			std::cout << std::thread::hardware_concurrency() << " concurrent threads are supported.\n"
 				<< "You no. of stimuli (Odors) should be less or equal than this number.\n";
 			std::cin.get();
-			SpikeJuggler.RunThreadPool(ResampledSets,ResamplingMethod,ZThresh,ExcZeroLag);
+			SpikeJuggler.RunThreadPool(ResampledSets,ResamplingMethod, StatTest, ZThresh, ExcZeroLag);
 		}
 		else
 		{
 			std::cout << "Starting in a single thread.\n";
 			std::cin.get();
-			SpikeJuggler.RunSingleThread(ResampledSets, ResamplingMethod, ZThresh, ExcZeroLag);
+			SpikeJuggler.RunSingleThread(ResampledSets, ResamplingMethod, StatTest, ZThresh, ExcZeroLag);
 		}
 	}
 	else
@@ -75,13 +76,13 @@ int main()
 			std::cout << std::thread::hardware_concurrency() << " concurrent threads are supported.\n"
 				<< "You no. of stimuli (Odors) should be less or equal than this number\n";
 			std::cin.get();
-			SpikeJuggler.RunThreadPool(ResampledSets, ResamplingMethod, ZThresh, ExcZeroLag);
+			SpikeJuggler.RunThreadPool(ResampledSets, ResamplingMethod, StatTest,  ZThresh, ExcZeroLag);
 		}
 		else
 		{
 			std::cout << "Starting in a single thread.\n";
 			std::cin.get();
-			SpikeJuggler.RunSingleThread(ResampledSets, ResamplingMethod, ZThresh, ExcZeroLag);
+			SpikeJuggler.RunSingleThread(ResampledSets, ResamplingMethod, StatTest, ZThresh, ExcZeroLag);
 		}
 	}
 

@@ -255,15 +255,15 @@ void Statistician::SpikeTrainShuffle(const std::vector<double>& reference, std::
 	}
 }
 
-void Statistician::RunSingleThread(int ResampledSets, unsigned char ResamplingMethod, double ZorPVal, bool ExcZeroLag)
+void Statistician::RunSingleThread(int ResampledSets, uint8_t ResamplingMethod, uint8_t StatTest, double ZorPVal, bool ExcZeroLag)
 {
 	for (int Stimulus = 0; Stimulus < OdorEx.GetStimuli(); Stimulus++)
 	{
-		MasterSpikeCrossCorrWorker(Stimulus, ResampledSets, ResamplingMethod, ZorPVal, ExcZeroLag);
+		MasterSpikeCrossCorrWorker(Stimulus, ResampledSets, ResamplingMethod, StatTest, ZorPVal, ExcZeroLag);
 	}
 }
 
-void Statistician::RunThreadPool(int ResampledSets, unsigned char ResamplingMethod, double ZorPVal, bool ExcZeroLag)
+void Statistician::RunThreadPool(int ResampledSets, uint8_t ResamplingMethod, uint8_t StatTest, double ZorPVal, bool ExcZeroLag)
 {
 	//ThreadPool with n threads. n = number of odors.
 	std::vector<std::future<void>> ThreadPool(OdorEx.GetStimuli());
@@ -274,7 +274,7 @@ void Statistician::RunThreadPool(int ResampledSets, unsigned char ResamplingMeth
 	for (int Stimulus = 0; CurrentThread < EndThread; ++CurrentThread, Stimulus++)
 	{
 		*CurrentThread = std::async(std::launch::async, &Statistician::MasterSpikeCrossCorrWorker,
-			this, Stimulus, ResampledSets, ResamplingMethod, ZorPVal, ExcZeroLag);
+			this, Stimulus, ResampledSets, ResamplingMethod, StatTest, ZorPVal, ExcZeroLag);
 	}
 
 	while (true)
@@ -292,7 +292,7 @@ void Statistician::RunThreadPool(int ResampledSets, unsigned char ResamplingMeth
 	}
 }
 
-void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, unsigned char ResamplingMethod, double ZorPVal, bool ExcZeroLag)
+void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, uint8_t ResamplingMethod, uint8_t StatTest, double ZorPVal, bool ExcZeroLag)
 {
 
 	//NOTE: Im not convienced that STD matrices are the best way to deal with the problem. They are well allocated but anyway they may impact the performance,
@@ -364,7 +364,6 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 
 					switch (ResamplingMethod)
 					{
-
 					case SHUFFLING:
 						SpikeTrainShuffle(*RefTrialTrain, *TarTrialTrain, SpikesCountResampled, CountRes); //Compute Corr shuffling method.
 						break;
@@ -385,100 +384,24 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 			
 			//Mean and STD of the matrix and vectors of the choosen resampling method.///////////
 			CountRes /= ResampledSets; //This needs to be divided into ResampledSets because that is the size of the Matrix, is not a vector anymore.
-			bool GoodResampling = PrepZTest(SpikesSTDCount, SpikesCountResampled, SpikesSTDResampled, SpikesPResampled, ResampledSets, CountRes);
+			bool GoodResampling = false;
 
-			if (GoodResampling && (CountCorr != 0))
+			switch (StatTest)
 			{
-				
-				double MeanSTD = (double)std::accumulate(SpikesSTDResampled.begin(), SpikesSTDResampled.end(), 0.0) / (double)SpikesSTDResampled.size();
-				
-				//Fill the Probability Vector.
-				std::transform(SpikesCountCorr.begin(), SpikesCountCorr.end(),
-					SpikesPCorr.begin(),
-					[&CountCorr](unsigned int& Bin) -> double { return (double)Bin / (double)CountCorr; });
+			case ZTEST:
+				if (PrepZTest(SpikesSTDCount, SpikesCountResampled, SpikesSTDResampled, SpikesPResampled, ResampledSets, CountRes) && (CountCorr != 0))
+				{
+					ZTestToFile(SpikesSTDResampled, SpikesCountCorr, SpikesPCorr,
+						SpikesPResampled, CountCorr, BinExcluded, ZorPVal, CorrFile, ReferenceUnit, TargetUnit, CountRes);
+				}
+				break;
 
-				//Z Transform.
-				std::transform(SpikesPCorr.begin(), SpikesPCorr.end(), SpikesPResampled.begin(), SpikesPCorr.begin(),
-					[&MeanSTD](double& PBin, double& MeanBin) -> double { return (PBin - MeanBin) / MeanSTD; });
-
-				//Writing Significant Correlations to File.
-				bool LeadEx = std::any_of(SpikesPCorr.end() - (SpikesPCorr.size() / 2) + BinExcluded, SpikesPCorr.end(),
-					[&ZorPVal](double& ZorRVal) {return ZorRVal > ZorPVal; });
-				bool LagEx = std::any_of(SpikesPCorr.begin(), SpikesPCorr.begin() + (SpikesPCorr.size() / 2) - BinExcluded,
-					[&ZorPVal](double& ZorRVal) {return ZorRVal > ZorPVal; });
-				bool LeadIn = std::any_of(SpikesPCorr.end() - (SpikesPCorr.size() / 2) + BinExcluded, SpikesPCorr.end(),
-					[&ZorPVal](double& ZorRVal) {return ZorRVal < -ZorPVal; });
-				bool LagIn = std::any_of(SpikesPCorr.begin(), SpikesPCorr.begin() + (SpikesPCorr.size() / 2) - BinExcluded,
-					[&ZorPVal](double& ZorRVal) {return ZorRVal < -ZorPVal; });
-
-				mu.lock();
-				if (LeadEx && LagEx)
-				{
-					//Comented code for binary files
-					/*unsigned short CorrType = 1;
-					CorrFile.write(reinterpret_cast<char*>(&CorrType), 2);
-					CorrFile.write(reinterpret_cast<char*>(&ReferenceUnit), 2);
-					CorrFile.write(reinterpret_cast<char*>(&TargetUnit), 2);*/
-
-					//Code to store in txt files.
-					CorrFile << 1 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
-					WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
-					WriteToFileWorkerT(CorrFile,  SpikesPCorr,1);
-					WriteToFileWorkerT(CorrFile, SpikesPResampled, CountRes);
-					CorrFile << MeanSTD << ", " << "\n";
-				}
-				else if (LeadEx)
-				{
-					CorrFile << 2 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
-					WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
-					WriteToFileWorkerT(CorrFile, SpikesPCorr, 1);
-					WriteToFileWorkerT(CorrFile, SpikesPResampled, CountRes);
-					CorrFile << MeanSTD << ", " << "\n";
-				}
-				else if (LagEx)
-				{
-					CorrFile << 3 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
-					WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
-					WriteToFileWorkerT(CorrFile, SpikesPCorr, 1);
-					WriteToFileWorkerT(CorrFile, SpikesPResampled, CountRes);
-					CorrFile << MeanSTD << ", " << "\n";
-				}
-
-				if (LeadIn && LagIn)
-				{
-					CorrFile << 4 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
-					WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
-					WriteToFileWorkerT(CorrFile, SpikesPCorr, 1);
-					WriteToFileWorkerT(CorrFile, SpikesPResampled, CountRes);
-					CorrFile << MeanSTD << ", " << "\n";
-				}
-				else if (LeadIn)
-				{
-					CorrFile << 5 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
-					WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
-					WriteToFileWorkerT(CorrFile, SpikesPCorr, 1);
-					WriteToFileWorkerT(CorrFile, SpikesPResampled, CountRes);
-					CorrFile << MeanSTD << ", " << "\n";
-				}
-				else if (LagIn)
-				{
-					CorrFile << 6 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
-					WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
-					WriteToFileWorkerT(CorrFile, SpikesPCorr, 1);
-					WriteToFileWorkerT(CorrFile, SpikesPResampled, CountRes);
-					CorrFile << MeanSTD << ", " << "\n";
-				}
-
-				if ((LeadIn || LagIn) && (LeadEx || LagEx))
-				{
-					CorrFile << 7 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
-					WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
-					WriteToFileWorkerT(CorrFile, SpikesPCorr, 1);
-					WriteToFileWorkerT(CorrFile, SpikesPResampled, CountRes);
-					CorrFile << MeanSTD << ", " << "\n";
-				}
-				mu.unlock();
+			case POINTWISE:
+				int PPlace = (int)std::round((ResampledSets * ZorPVal) / 2);
+				GoodResampling = PrepPointwise(SpikesSTDCount, SpikesCountResampled, SpikesSTDResampled, SpikesPResampled, ResampledSets, CountRes, PPlace); //Compute Corr Jittering method.
+				break;
 			}
+	
 			//Reseting Count Vectors and Matrix;
 			std::fill(SpikesCountCorr.begin(), SpikesCountCorr.end(), 0);
 
@@ -615,4 +538,97 @@ bool Statistician::PrepPointwise(std::vector<unsigned int>& SpikesSTDCount, std:
 	}
 
 	return true; //Return true if all the code is excecuted.
+}
+
+void Statistician::ZTestToFile(std::vector<double>& SpikesSTDResampled, std::vector<unsigned int>& SpikesCountCorr, std::vector<double>& SpikesPCorr,
+	std::vector<double>& SpikesPResampled, unsigned int CountCorr, int BinExcluded, double ZorPVal, std::ofstream& CorrFile, uint16_t ReferenceUnit, uint16_t TargetUnit, uint32_t CountRes)
+{
+	double MeanSTD = (double)std::accumulate(SpikesSTDResampled.begin(), SpikesSTDResampled.end(), 0.0) / (double)SpikesSTDResampled.size();
+
+	//Fill the Probability Vector.
+	std::transform(SpikesCountCorr.begin(), SpikesCountCorr.end(),
+		SpikesPCorr.begin(),
+		[&CountCorr](unsigned int& Bin) -> double { return (double)Bin / (double)CountCorr; });
+
+	//Z Transform.
+	std::transform(SpikesPCorr.begin(), SpikesPCorr.end(), SpikesPResampled.begin(), SpikesPCorr.begin(),
+		[&MeanSTD](double& PBin, double& MeanBin) -> double { return (PBin - MeanBin) / MeanSTD; });
+
+	//Writing Significant Correlations to File.
+	bool LeadEx = std::any_of(SpikesPCorr.end() - (SpikesPCorr.size() / 2) + BinExcluded, SpikesPCorr.end(),
+		[&ZorPVal](double& ZorRVal) {return ZorRVal > ZorPVal; });
+	bool LagEx = std::any_of(SpikesPCorr.begin(), SpikesPCorr.begin() + (SpikesPCorr.size() / 2) - BinExcluded,
+		[&ZorPVal](double& ZorRVal) {return ZorRVal > ZorPVal; });
+	bool LeadIn = std::any_of(SpikesPCorr.end() - (SpikesPCorr.size() / 2) + BinExcluded, SpikesPCorr.end(),
+		[&ZorPVal](double& ZorRVal) {return ZorRVal < -ZorPVal; });
+	bool LagIn = std::any_of(SpikesPCorr.begin(), SpikesPCorr.begin() + (SpikesPCorr.size() / 2) - BinExcluded,
+		[&ZorPVal](double& ZorRVal) {return ZorRVal < -ZorPVal; });
+
+	mu.lock();
+	if (LeadEx && LagEx)
+	{
+		//Comented code for binary files
+		/*unsigned short CorrType = 1;
+		CorrFile.write(reinterpret_cast<char*>(&CorrType), 2);
+		CorrFile.write(reinterpret_cast<char*>(&ReferenceUnit), 2);
+		CorrFile.write(reinterpret_cast<char*>(&TargetUnit), 2);*/
+
+		//Code to store in txt files.
+		CorrFile << 1 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
+		WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
+		WriteToFileWorkerT(CorrFile, SpikesPCorr, 1);
+		WriteToFileWorkerT(CorrFile, SpikesPResampled, CountRes);
+		CorrFile << MeanSTD << ", " << "\n";
+	}
+	else if (LeadEx)
+	{
+		CorrFile << 2 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
+		WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
+		WriteToFileWorkerT(CorrFile, SpikesPCorr, 1);
+		WriteToFileWorkerT(CorrFile, SpikesPResampled, CountRes);
+		CorrFile << MeanSTD << ", " << "\n";
+	}
+	else if (LagEx)
+	{
+		CorrFile << 3 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
+		WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
+		WriteToFileWorkerT(CorrFile, SpikesPCorr, 1);
+		WriteToFileWorkerT(CorrFile, SpikesPResampled, CountRes);
+		CorrFile << MeanSTD << ", " << "\n";
+	}
+
+	if (LeadIn && LagIn)
+	{
+		CorrFile << 4 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
+		WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
+		WriteToFileWorkerT(CorrFile, SpikesPCorr, 1);
+		WriteToFileWorkerT(CorrFile, SpikesPResampled, CountRes);
+		CorrFile << MeanSTD << ", " << "\n";
+	}
+	else if (LeadIn)
+	{
+		CorrFile << 5 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
+		WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
+		WriteToFileWorkerT(CorrFile, SpikesPCorr, 1);
+		WriteToFileWorkerT(CorrFile, SpikesPResampled, CountRes);
+		CorrFile << MeanSTD << ", " << "\n";
+	}
+	else if (LagIn)
+	{
+		CorrFile << 6 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
+		WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
+		WriteToFileWorkerT(CorrFile, SpikesPCorr, 1);
+		WriteToFileWorkerT(CorrFile, SpikesPResampled, CountRes);
+		CorrFile << MeanSTD << ", " << "\n";
+	}
+
+	if ((LeadIn || LagIn) && (LeadEx || LagEx))
+	{
+		CorrFile << 7 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
+		WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
+		WriteToFileWorkerT(CorrFile, SpikesPCorr, 1);
+		WriteToFileWorkerT(CorrFile, SpikesPResampled, CountRes);
+		CorrFile << MeanSTD << ", " << "\n";
+	}
+	mu.unlock();
 }
