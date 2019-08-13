@@ -25,7 +25,7 @@ private:
 	void MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, uint8_t ResamplingMethod, uint8_t StatTest, double ZorPVal, bool ExcZeroLag);
 	void WriteToFileWorker(std::ofstream& CorrFile, std::vector<double>& CorrVec, uint32_t CorrCount);
 	bool PrepZTest(std::vector<unsigned int>& SpikesSTDCount, std::vector<std::vector<unsigned int>>& SpikesCountResampled, std::vector<double>& SpikesSTDResampled, std::vector<double>& SpikesPResampled, uint32_t CountRes);
-	bool PrepPointwise(std::vector<uint32_t>& SpikesSTDCount, std::vector<std::vector<uint32_t>>& SpikesCountResampled, std::vector<uint32_t>& LPWBand, std::vector<uint32_t>& UPWBand, uint32_t CountRes, int PValPlace);
+	std::pair<uint32_t, uint32_t> PrepPointwise(std::vector<uint32_t>& SpikesSTDCount, std::vector<std::vector<uint32_t>>& SpikesCountResampled, std::vector<uint32_t>& LPWBand, std::vector<uint32_t>& UPWBand, uint32_t CountRes, double PValPlace);
 	void ZTestToFile(std::vector<double>& SpikesSTDResampled, std::vector<unsigned int>& SpikesCountCorr, std::vector<double>& SpikesPCorr, std::vector<double>& SpikesPResampled, unsigned int CountCorr, int BinExcluded, double ZorPVal, std::ofstream& CorrFile, uint16_t ReferenceUnit, uint16_t TargetUnit, uint32_t CountRes);
 	
 	template <typename T>

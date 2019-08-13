@@ -5,6 +5,7 @@
 #include <numeric>
 #include <cmath>
 #include <string>
+#include <utility>
 
 
 
@@ -388,7 +389,6 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 			
 			//Mean and STD of the matrix and vectors of the choosen resampling method.///////////
 			CountRes /= ResampledSets; //This needs to be divided into ResampledSets because that is the size of the Matrix, is not a vector anymore.
-			bool GoodResampling = false;
 
 			switch (StatTest)
 			{
@@ -401,8 +401,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 				break;
 
 			case POINTWISE:
-				int PPlace = (int)std::ceil((ResampledSets * ZorPVal) / 2);
-				GoodResampling = PrepPointwise(SpikesSTDCount, SpikesCountResampled, LPWBand, UPWBand, CountRes, PPlace); //Compute Corr Jittering method.
+				auto GlobalBands = PrepPointwise(SpikesSTDCount, SpikesCountResampled, LPWBand, UPWBand, CountRes, ZorPVal); //Compute Corr Jittering method.
 				break;
 			}
 	
@@ -499,9 +498,14 @@ bool Statistician::PrepZTest(std::vector<unsigned int>& SpikesSTDCount, std::vec
 	return true; //Return true if all the code is excecuted.
 }
 
-bool Statistician::PrepPointwise(std::vector<uint32_t>& SpikesSTDCount, std::vector<std::vector<uint32_t>>& SpikesCountResampled,
-	std::vector<uint32_t>& LPWBand, std::vector<uint32_t>& UPWBand, uint32_t CountRes,int PValPlace)
+std::pair<uint32_t, uint32_t> Statistician::PrepPointwise(std::vector<uint32_t>& SpikesSTDCount, std::vector<std::vector<uint32_t>>& SpikesCountResampled,
+	std::vector<uint32_t>& LPWBand, std::vector<uint32_t>& UPWBand, uint32_t CountRes,double PVal)
 {
+	int PValPlace = (int)std::ceil(double(SpikesCountResampled.size() * PVal) / 2.0);
+	std::vector<std::vector<uint32_t>> LPWBands(PValPlace, std::vector<uint32_t>(NoBins));
+	std::vector<std::vector<uint32_t>> UPWBands(PValPlace, std::vector<uint32_t>(NoBins));
+
+
 	for (int Bin = 0; Bin < NoBins; Bin++)
 	{
 		//Looping through the Matrix and filling the STDCount Vector.
@@ -517,34 +521,61 @@ bool Statistician::PrepPointwise(std::vector<uint32_t>& SpikesSTDCount, std::vec
 
 		std::sort(SpikesSTDCount.begin(), SpikesSTDCount.end());
 
+		int ProvPlace = PValPlace;
+
+		for (auto LPWsit = LPWBands.begin(), UPWsit = UPWBands.begin(), End = LPWBands.end();
+			LPWsit < End; ++LPWsit, ++UPWsit)
+		{
+
+			*(LPWsit->begin() + Bin) = *(SpikesSTDCount.begin() + ProvPlace - 1);
+			*(UPWsit->begin() + Bin) = *(SpikesSTDCount.end() - ProvPlace);
+
+			ProvPlace--;
+		}
+
 		//Pointwise bands.
 		*(LPWBand.begin() + Bin) = *(SpikesSTDCount.begin() + PValPlace - 1); // Low Pval.
 		*(UPWBand.begin() + Bin) = *(SpikesSTDCount.end() - PValPlace); // Upper Val.
 
-		STDCount = SpikesSTDCount.begin(); // Reseting the iterator of the vector.
 	}
 
-	//Loop for gettting the propotion of surrogate data sets that break the pointwise bands at ANY point.
-	uint32_t PWCount = 0;
-	for (auto BinVec = SpikesCountResampled.cbegin(), BinVecEnd = SpikesCountResampled.cend();
-		BinVec < BinVecEnd;
-		++BinVec)
+	//Loop for gettting the P of surrogate data sets that break the pointwise bands at ANY point, that is the PVal of the global band that corresponds to the alpha of the Pairwise bands.
+
+
+	for (auto LPWVecit = LPWBands.cbegin(), UPWVecit = UPWBands.cbegin(), Ends = LPWBands.cend();
+		LPWVecit < Ends; ++LPWVecit, ++UPWVecit)
 	{
-		for (auto LPWit = LPWBand.cbegin(), UPWit = UPWBand.cbegin(), ResDatait = BinVec->cbegin(), End = LPWBand.cend();
-			LPWit < End; ++LPWit)
+		uint32_t PWCount = 0;
+
+		for (auto BinVec = SpikesCountResampled.cbegin(), BinVecEnd = SpikesCountResampled.cend();
+			BinVec < BinVecEnd;
+			++BinVec)
+		{
+				for (auto LPWit = LPWVecit->cbegin(), UPWit = UPWVecit->cbegin(), End = LPWVecit->cend(), ResDatait = BinVec->cbegin();
+					LPWit < End; ++LPWit, ++UPWit, ++ResDatait)
+				{
+					if (*ResDatait < *LPWit || *ResDatait > *UPWit)
+					{
+						PWCount += 1;
+						break;
+					}
+				}
+		}
+
+		if ((double)PWCount / (double)SpikesCountResampled.size() <= PVal)
 		{
 
-			if (*ResDatait < *LPWit || *ResDatait > * UPWit)
-			{
-				PWCount += 1;
-				break;
-			}
+			auto LowBand = std::min_element(LPWVecit->begin(), LPWVecit->end());
+			auto UpperBand = std::min_element(UPWVecit->begin(), UPWVecit->end());
+
+			return std::pair<uint32_t, uint32_t>(*LowBand,*UpperBand);
 		}
 	}
 
-	double PWProb = (double)PWCount / (double)SpikesCountResampled.size();
+	auto LowBand = std::min_element(LPWBands.rbegin()->begin(), LPWBands.rbegin()->end());
+	auto UpperBand = std::min_element(UPWBands.rbegin()->begin(), UPWBands.rbegin()->end());
 
-	return true; //Return true if all the code is excecuted.
+	return std::pair<uint32_t, uint32_t>(*LowBand, *UpperBand);
 }
 
 void Statistician::ZTestToFile(std::vector<double>& SpikesSTDResampled, std::vector<unsigned int>& SpikesCountCorr, std::vector<double>& SpikesPCorr,
