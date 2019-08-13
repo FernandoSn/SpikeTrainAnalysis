@@ -319,8 +319,12 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 
 	std::vector<std::vector<unsigned int>> SpikesCountResampled(ResampledSets,std::vector<unsigned int>(NoBins)); // Good! Resampling Matrix, this is annoying but necessary to obtain the standard deviation.
 	std::vector<unsigned int> SpikesSTDCount(ResampledSets);
+	//Vars when working with Z test
 	std::vector<double> SpikesSTDResampled(NoBins); // STD vector. STD is obtained across ResampledSets of mean trials.
 	std::vector<double> SpikesPResampled(NoBins); // Vector for probabilities scores.
+	//Vars when working with pointwise comp fujisawa, 2008.
+	std::vector<uint32_t> LPWBand(NoBins); //
+	std::vector<uint32_t> UPWBand(NoBins);
 	mu.unlock();
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -389,7 +393,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 			switch (StatTest)
 			{
 			case ZTEST:
-				if (PrepZTest(SpikesSTDCount, SpikesCountResampled, SpikesSTDResampled, SpikesPResampled, ResampledSets, CountRes) && (CountCorr != 0))
+				if (PrepZTest(SpikesSTDCount, SpikesCountResampled, SpikesSTDResampled, SpikesPResampled, CountRes) && (CountCorr != 0))
 				{
 					ZTestToFile(SpikesSTDResampled, SpikesCountCorr, SpikesPCorr,
 						SpikesPResampled, CountCorr, BinExcluded, ZorPVal, CorrFile, ReferenceUnit, TargetUnit, CountRes);
@@ -397,8 +401,8 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 				break;
 
 			case POINTWISE:
-				int PPlace = (int)std::round((ResampledSets * ZorPVal) / 2);
-				GoodResampling = PrepPointwise(SpikesSTDCount, SpikesCountResampled, SpikesSTDResampled, SpikesPResampled, ResampledSets, CountRes, PPlace); //Compute Corr Jittering method.
+				int PPlace = (int)std::ceil((ResampledSets * ZorPVal) / 2);
+				GoodResampling = PrepPointwise(SpikesSTDCount, SpikesCountResampled, LPWBand, UPWBand, CountRes, PPlace); //Compute Corr Jittering method.
 				break;
 			}
 	
@@ -453,7 +457,7 @@ void Statistician::WriteToFileWorker(std::ofstream& CorrFile, std::vector<double
 }
 
 bool Statistician::PrepZTest(std::vector<unsigned int>& SpikesSTDCount, std::vector<std::vector<unsigned int>>& SpikesCountResampled,
-	std::vector<double>& SpikesSTDResampled, std::vector<double>& SpikesPResampled, int ResampledSets, uint32_t CountRes )
+	std::vector<double>& SpikesSTDResampled, std::vector<double>& SpikesPResampled, uint32_t CountRes )
 {
 	for (int Bin = 0; Bin < NoBins; Bin++)
 	{
@@ -469,7 +473,7 @@ bool Statistician::PrepZTest(std::vector<unsigned int>& SpikesSTDCount, std::vec
 		}
 
 		//Math for the params that are needed by the Z Test
-		double BinMean = (double)std::accumulate(SpikesSTDCount.begin(), SpikesSTDCount.end(), 0) / (double)ResampledSets;
+		double BinMean = (double)std::accumulate(SpikesSTDCount.begin(), SpikesSTDCount.end(), 0) / (double)SpikesCountResampled.size();
 
 		//Necesary check for unpopulated resampled correlograms. false positives can be assumed if this is not checked, although this is not the best way to code it. Bad design.
 		if (BinMean == 0)
@@ -483,7 +487,7 @@ bool Statistician::PrepZTest(std::vector<unsigned int>& SpikesSTDCount, std::vec
 		{
 			BinVariance += ((double)(*STDCount) - BinMean) * ((double)(*STDCount) - BinMean);
 		}
-		BinVariance /= ((double)ResampledSets - 1.0); // this is Variance over N. Matlab uses Bessels correction to compute STD. Actually Im gonna use Bessels correction.
+		BinVariance /= ((double)SpikesCountResampled.size() - 1.0); // this is Variance over N. Matlab uses Bessels correction to compute STD. Actually Im gonna use Bessels correction.
 
 		*(SpikesSTDResampled.begin() + Bin) = std::sqrt(BinVariance) / (double)CountRes; // Stand deviation to my STD vector.
 		*(SpikesPResampled.begin() + Bin) = BinMean / (double)CountRes;
@@ -495,8 +499,8 @@ bool Statistician::PrepZTest(std::vector<unsigned int>& SpikesSTDCount, std::vec
 	return true; //Return true if all the code is excecuted.
 }
 
-bool Statistician::PrepPointwise(std::vector<unsigned int>& SpikesSTDCount, std::vector<std::vector<unsigned int>>& SpikesCountResampled,
-	std::vector<double>& SpikesSTDResampled, std::vector<double>& SpikesPResampled, int ResampledSets, uint32_t CountRes,double PVal)
+bool Statistician::PrepPointwise(std::vector<uint32_t>& SpikesSTDCount, std::vector<std::vector<uint32_t>>& SpikesCountResampled,
+	std::vector<uint32_t>& LPWBand, std::vector<uint32_t>& UPWBand, uint32_t CountRes,int PValPlace)
 {
 	for (int Bin = 0; Bin < NoBins; Bin++)
 	{
@@ -513,29 +517,32 @@ bool Statistician::PrepPointwise(std::vector<unsigned int>& SpikesSTDCount, std:
 
 		std::sort(SpikesSTDCount.begin(), SpikesSTDCount.end());
 
-		//Math for the params that are needed by the Z Test
-		double BinMean = (double)std::accumulate(SpikesSTDCount.begin(), SpikesSTDCount.end(), 0) / (double)ResampledSets;
-
-		//Necesary check for unpopulated resampled correlograms. false positives can be assumed if this is not checked, although this is not the best way to code it. Bad design.
-		if (BinMean == 0)
-		{
-			return false; //Return false because is a badresampling
-		}
-
-		double BinVariance = 0.0;
-
-		for (STDCount = SpikesSTDCount.begin(); STDCount < STDCountEnd; ++STDCount)
-		{
-			BinVariance += ((double)(*STDCount) - BinMean) * ((double)(*STDCount) - BinMean);
-		}
-		BinVariance /= ((double)ResampledSets - 1.0); // this is Variance over N. Matlab uses Bessels correction to compute STD. Actually Im gonna use Bessels correction.
-
-		*(SpikesSTDResampled.begin() + Bin) = std::sqrt(BinVariance) / (double)CountRes; // Stand deviation to my STD vector.
-		*(SpikesPResampled.begin() + Bin) = BinMean / (double)CountRes;
-
+		//Pointwise bands.
+		*(LPWBand.begin() + Bin) = *(SpikesSTDCount.begin() + PValPlace - 1); // Low Pval.
+		*(UPWBand.begin() + Bin) = *(SpikesSTDCount.end() - PValPlace); // Upper Val.
 
 		STDCount = SpikesSTDCount.begin(); // Reseting the iterator of the vector.
 	}
+
+	//Loop for gettting the propotion of surrogate data sets that break the pointwise bands at ANY point.
+	uint32_t PWCount = 0;
+	for (auto BinVec = SpikesCountResampled.cbegin(), BinVecEnd = SpikesCountResampled.cend();
+		BinVec < BinVecEnd;
+		++BinVec)
+	{
+		for (auto LPWit = LPWBand.cbegin(), UPWit = UPWBand.cbegin(), ResDatait = BinVec->cbegin(), End = LPWBand.cend();
+			LPWit < End; ++LPWit)
+		{
+
+			if (*ResDatait < *LPWit || *ResDatait > * UPWit)
+			{
+				PWCount += 1;
+				break;
+			}
+		}
+	}
+
+	double PWProb = (double)PWCount / (double)SpikesCountResampled.size();
 
 	return true; //Return true if all the code is excecuted.
 }
