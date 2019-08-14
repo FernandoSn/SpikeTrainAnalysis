@@ -203,21 +203,63 @@ void Statistician::SpikeTrainCorr(const std::vector<double>& reference, const st
 void Statistician::SpikeTrainJitter(const std::vector<double>& reference, std::vector<double> target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count)
 {
 
+	//This is bad because it is just copy pasta from the SpikeTrainCorr func and adding just a single Line for Jittering short intervals, but Im lazy to change the arquitecture.
+	//I think that passing a bool to SpikeTrainCorr would just make the code messier.
+
 	//Setting Pseudo Random Number Uniform Distribution for jittering [-5ms, 5ms] (Fujisawa, 2018)
 	std::uniform_real_distribution<double> distribution(-0.005, 0.005);
 
 	for (auto Spikes = SpikesMatrix.begin(), SMEnd = SpikesMatrix.end(); Spikes < SMEnd; ++Spikes)
 	{
-		double Jitter = distribution(Generator);
+		//Computes Correlations separated by bins;
 
-		std::for_each(target.begin(),
-			target.end(),
-			[&Jitter](double& Spike) { Spike += Jitter; });
+		double CurrentBinF;
+		double CurrentBinL;
+		auto LBit = target.begin();
 
-		SpikeTrainCorr(reference,
-			target,
-			*Spikes,
-			Count);
+		for (const double& Spike : reference)
+		{
+			CurrentBinF = Spike - EpochSec; // Set the current bins for the lambda function.
+			CurrentBinL = CurrentBinF + BinSizeSec;
+
+			//Boundaries of the target spikes.
+			LBit = std::lower_bound(LBit, target.end(), Spike - EpochSec);
+			auto UBit = std::upper_bound(LBit, target.end(), Spike + EpochSec);
+
+			std::for_each(LBit, UBit, //Jittering here!
+				[this, &distribution](double& Spike) { Spike += distribution(Generator); });
+
+			//Ierators for Count Corr vec
+			auto Bin = Spikes->begin(), LastBin = Spikes->end();
+
+			for (; Bin < LastBin - (NoBins / 2); ++Bin)
+			{
+				*Bin += (unsigned int)std::count_if(LBit, //std library stuff, very convenient and fast.
+					UBit,
+					[&CurrentBinF, &CurrentBinL](double TargetSpike)
+					{
+						return TargetSpike >= CurrentBinF && TargetSpike < CurrentBinL;
+					}
+				);
+				CurrentBinF = CurrentBinL;
+				CurrentBinL = CurrentBinF + BinSizeSec;
+			}
+
+			for (; Bin < LastBin; ++Bin)
+			{
+				*Bin += (unsigned int)std::count_if(LBit, //std library stuff, very convenient and fast.
+					UBit,
+					[&CurrentBinF, &CurrentBinL](double TargetSpike)
+					{
+						return TargetSpike > CurrentBinF && TargetSpike <= CurrentBinL;
+					}
+				);
+				CurrentBinF = CurrentBinL;
+				CurrentBinL = CurrentBinF + BinSizeSec;
+			}
+		}
+		//std::cout << "Shuff2: " << "\n";
+		Count += (unsigned int)reference.size();
 	}
 }
 
