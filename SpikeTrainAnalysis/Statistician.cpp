@@ -7,6 +7,7 @@
 #include <string>
 #include <utility>
 
+#include <chrono>
 
 
 
@@ -213,14 +214,16 @@ void Statistician::SpikeTrainJitter(const std::vector<double>& reference, const 
 	double CurrentBinF;
 	double CurrentBinL;
 
+
+
 	for (auto Spikes = SpikesMatrix.begin(), SMEnd = SpikesMatrix.end(); Spikes < SMEnd; ++Spikes)
 	{
 		//Computes Correlations separated by bins;
-		
+
 		std::transform(target.cbegin(), target.cend(), JitteredTarget.begin(), //Jittering here!
 			[this, &distribution](const double& Spike) { return Spike + distribution(Generator); });
 
-
+		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
 		auto RangeF = JitteredTarget.begin();
 		auto LowerB = JitteredTarget.begin();
 		
@@ -265,8 +268,11 @@ void Statistician::SpikeTrainJitter(const std::vector<double>& reference, const 
 				CurrentBinL = CurrentBinF + BinSizeSec;
 			}
 		}
-		//std::cout << "Shuff2: " << "\n";
+
 		Count += (unsigned int)reference.size();
+		std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+		std::chrono::duration<float> duration = end - start;
+		std::cout << duration.count() << "\n";
 	}
 
 }
