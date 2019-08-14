@@ -200,11 +200,12 @@ void Statistician::SpikeTrainCorr(const std::vector<double>& reference, const st
 	Count += (unsigned int)reference.size();
 }
 
-void Statistician::SpikeTrainJitter(const std::vector<double>& reference, std::vector<double> target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count)
+void Statistician::SpikeTrainJitter(const std::vector<double>& reference, const std::vector<double>& target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count)
 {
 
 	//This is bad because it is just copy pasta from the SpikeTrainCorr func and adding just a single Line for Jittering short intervals, but Im lazy to change the arquitecture.
 	//I think that passing a bool to SpikeTrainCorr would just make the code messier.
+
 
 	//Setting Pseudo Random Number Uniform Distribution for jittering [-5ms, 5ms] (Fujisawa, 2018)
 	std::uniform_real_distribution<double> distribution(-0.005, 0.005);
@@ -212,10 +213,11 @@ void Statistician::SpikeTrainJitter(const std::vector<double>& reference, std::v
 	for (auto Spikes = SpikesMatrix.begin(), SMEnd = SpikesMatrix.end(); Spikes < SMEnd; ++Spikes)
 	{
 		//Computes Correlations separated by bins;
-
+		std::vector<double> targetcpy = target;
 		double CurrentBinF;
 		double CurrentBinL;
-		auto LBit = target.begin();
+		auto LBit = targetcpy.begin();
+		auto Jitteredit = targetcpy.begin();
 
 		for (const double& Spike : reference)
 		{
@@ -223,14 +225,24 @@ void Statistician::SpikeTrainJitter(const std::vector<double>& reference, std::v
 			CurrentBinL = CurrentBinF + BinSizeSec;
 
 			//Boundaries of the target spikes.
-			LBit = std::lower_bound(LBit, target.end(), Spike - EpochSec);
-			auto UBit = std::upper_bound(LBit, target.end(), Spike + EpochSec);
+			LBit = std::lower_bound(LBit, targetcpy.end(), Spike - EpochSec);
+			auto UBit = std::upper_bound(LBit, targetcpy.end(), Spike + EpochSec);
 
-			std::for_each(LBit, UBit, //Jittering here!
-				[this, &distribution](double& Spike) { Spike += distribution(Generator); });
+			if (LBit <= Jitteredit)
+			{
+				Jitteredit = std::transform(Jitteredit, UBit, Jitteredit, //Jittering here!
+					[this, &distribution](double& Spike) { return Spike + distribution(Generator); });
+			}
+			else
+			{
+				Jitteredit = std::transform(LBit, UBit, LBit, //Jittering here!
+					[this, &distribution](double& Spike) { return Spike + distribution(Generator); });
+			}
 
 			//Ierators for Count Corr vec
 			auto Bin = Spikes->begin(), LastBin = Spikes->end();
+			/*auto RangeF = LBit;
+			auto RangeL = LBit;*/
 
 			for (; Bin < LastBin - (NoBins / 2); ++Bin)
 			{
@@ -261,6 +273,7 @@ void Statistician::SpikeTrainJitter(const std::vector<double>& reference, std::v
 		//std::cout << "Shuff2: " << "\n";
 		Count += (unsigned int)reference.size();
 	}
+
 }
 
 void Statistician::SpikeTrainShuffle(const std::vector<double>& reference, std::vector<double> target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count)
@@ -654,7 +667,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 		}
 	}
 
-	if (CorrFile.bad())
+	/*if (CorrFile.bad())
 		std::cout << "bad";
 
 	else if (CorrFile.eof())
@@ -676,5 +689,5 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 		mu.lock();
 		std::cout << "stream state is eofbit\n";
 		mu.unlock();
-	}
+	}*/
 }

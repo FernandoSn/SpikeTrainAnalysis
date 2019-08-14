@@ -9,19 +9,11 @@
 int main()
 {
 
+	int asd = 10;
 
-	std::random_device Rd;
-	std::default_random_engine Generator(Rd());
-	std::uniform_real_distribution<double> distribution(-0.005, 0.005);
-	double asd = distribution(Generator);
+	int& refasd = asd;
 
-	for (int i = 0; i < 100; i++)
-		//std::cout << asd << "\n";
-
-
-
-
-
+	int asdcopy = refasd;
 	//This is not professional coding. to my taste class are well designed maybe the thread pool or MasterCorr on Statistician
 	//needs more work because a have a ton of code in one method but its acceptable.
 	//The part that is really bad is the user input, first to input different parameters you need to edit this code, you dont have IO.
