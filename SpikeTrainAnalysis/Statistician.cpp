@@ -211,68 +211,22 @@ void Statistician::SpikeTrainJitter(const std::vector<double>& reference, const 
 	//Setting Pseudo Random Number Uniform Distribution for jittering [-5ms, 5ms] (Fujisawa, 2018)
 	std::uniform_real_distribution<double> distribution(-0.005, 0.005);
 	std::vector<double> JitteredTarget(target.size());
-	double CurrentBinF;
-	double CurrentBinL;
-
 
 
 	for (auto Spikes = SpikesMatrix.begin(), SMEnd = SpikesMatrix.end(); Spikes < SMEnd; ++Spikes)
 	{
 		//Computes Correlations separated by bins;
 
+		//std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
 		std::transform(target.cbegin(), target.cend(), JitteredTarget.begin(), //Jittering here!
 			[this, &distribution](const double& Spike) { return Spike + distribution(Generator); });
 
-		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
-		auto RangeF = JitteredTarget.begin();
-		auto LowerB = JitteredTarget.begin();
-		
-		for (const double& Spike : reference)
-		{
-			CurrentBinF = Spike - EpochSec; // Set the current bins for the lambda function.
-			CurrentBinL = CurrentBinF + BinSizeSec;
 
-			//Ierators for Count Corr vec
-			auto Bin = Spikes->begin(), LastBin = Spikes->end();
+		SpikeTrainCorr(reference, JitteredTarget, *Spikes,Count);
 
-			RangeF = std::lower_bound(LowerB, JitteredTarget.end(), CurrentBinF);
-			auto RangeL = std::lower_bound(RangeF, JitteredTarget.end(), CurrentBinL);
-
-			LowerB = RangeF;
-
-			for (; Bin < LastBin - (NoBins / 2); ++Bin)
-			{
-				*Bin += (unsigned int)std::distance(RangeF, RangeL);
-				
-				CurrentBinF = CurrentBinL;
-				CurrentBinL = CurrentBinF + BinSizeSec;
-
-				RangeF = RangeL;
-				RangeL = std::lower_bound(RangeF, JitteredTarget.end(), CurrentBinL);
-			}
-
-			//RangeF = std::upper_bound(RangeF, targetcpy.end(), CurrentBinF);
-
-			for (; Bin < LastBin; ++Bin)
-			{
-
-				*Bin += (unsigned int)std::distance(RangeF, RangeL);
-
-				/*RangeF = RangeL;
-				RangeL = std::upper_bound(RangeF, targetcpy.end(), CurrentBinL);*/
-
-				RangeF = RangeL;
-				RangeL = std::lower_bound(RangeF, JitteredTarget.end(), CurrentBinL);
-
-				CurrentBinF = CurrentBinL;
-				CurrentBinL = CurrentBinF + BinSizeSec;
-			}
-		}
-
-		Count += (unsigned int)reference.size();
-		std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+		/*std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
 		std::chrono::duration<float> duration = end - start;
-		std::cout << duration.count() << "\n";
+		std::cout << duration.count() << "\n";*/
 	}
 
 }
@@ -404,7 +358,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 		RefTrain < endRT
 		; ++RefTrain, ReferenceUnit++)
 	{
-		if (ReferenceUnit == 37)
+		if (ReferenceUnit == 1)
 		{
 			//Stimulus locked target spike train loop
 			unsigned short TargetUnit = 1;
@@ -448,7 +402,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 
 
 				//Mean and STD of the matrix and vectors of the choosen resampling method.///////////
-				CountRes /= ResampledSets; //This needs to be divided into ResampledSets because that is the size of the Matrix, is not a vector anymore.
+				//CountRes /= ResampledSets; //This needs to be divided into ResampledSets because that is the size of the Matrix, is not a vector anymore.
 				bool GoodData = true;
 				bool GoodAlpha = false;
 
@@ -514,7 +468,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 						}
 					}
 
-					if ((double)PWCount / (double)SpikesCountResampled.size() <= PVal)
+					if ((double)PWCount / (double)SpikesCountResampled.size() <= PVal / 2.0)
 					{
 						//Defining global bands.
 						auto LowBand = std::min_element(LPWVecit->begin(), LPWVecit->end());
@@ -595,7 +549,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 						WriteToFileWorkerT(CorrFile, SpikesCountCorr);
 						WriteToFileWorkerT(CorrFile, LPWBand);
 						WriteToFileWorkerT(CorrFile, UPWBand);
-						CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << "\n";
+						CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << GoodAlpha << ", " << "\n";
 					}
 					else if (LeadEx)
 					{
@@ -603,7 +557,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 						WriteToFileWorkerT(CorrFile, SpikesCountCorr);
 						WriteToFileWorkerT(CorrFile, LPWBand);
 						WriteToFileWorkerT(CorrFile, UPWBand);
-						CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << "\n";
+						CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << GoodAlpha << ", " << "\n";
 					}
 					else if (LagEx)
 					{
@@ -611,7 +565,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 						WriteToFileWorkerT(CorrFile, SpikesCountCorr);
 						WriteToFileWorkerT(CorrFile, LPWBand);
 						WriteToFileWorkerT(CorrFile, UPWBand);
-						CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << "\n";
+						CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << GoodAlpha << ", " << "\n";
 					}
 
 					if (LeadIn && LagIn)
@@ -620,7 +574,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 						WriteToFileWorkerT(CorrFile, SpikesCountCorr);
 						WriteToFileWorkerT(CorrFile, LPWBand);
 						WriteToFileWorkerT(CorrFile, UPWBand);
-						CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << "\n";
+						CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << GoodAlpha << ", " << "\n";
 					}
 					else if (LeadIn)
 					{
@@ -628,7 +582,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 						WriteToFileWorkerT(CorrFile, SpikesCountCorr);
 						WriteToFileWorkerT(CorrFile, LPWBand);
 						WriteToFileWorkerT(CorrFile, UPWBand);
-						CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << "\n";
+						CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << GoodAlpha << ", " << "\n";
 					}
 					else if (LagIn)
 					{
@@ -636,7 +590,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 						WriteToFileWorkerT(CorrFile, SpikesCountCorr);
 						WriteToFileWorkerT(CorrFile, LPWBand);
 						WriteToFileWorkerT(CorrFile, UPWBand);
-						CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << "\n";
+						CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << GoodAlpha << ", " << "\n";
 					}
 
 					if ((LeadIn || LagIn) && (LeadEx || LagEx))
@@ -645,7 +599,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 						WriteToFileWorkerT(CorrFile, SpikesCountCorr);
 						WriteToFileWorkerT(CorrFile, LPWBand);
 						WriteToFileWorkerT(CorrFile, UPWBand);
-						CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << "\n";
+						CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << GoodAlpha << ", " << "\n";
 					}
 					mu.unlock();
 				}
@@ -668,7 +622,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 		}
 	}
 
-	/*if (CorrFile.bad())
+	if (CorrFile.bad())
 		std::cout << "bad";
 
 	else if (CorrFile.eof())
@@ -690,5 +644,5 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 		mu.lock();
 		std::cout << "stream state is eofbit\n";
 		mu.unlock();
-	}*/
+	}
 }
