@@ -10,14 +10,6 @@ int main()
 {
 
 
-	std::random_device Rd;
-	std::default_random_engine Generator(Rd());
-	std::uniform_real_distribution<double> distribution(-0.005, 0.005);
-	double asd = distribution(Generator);
-
-	for (int i = 0; i < 100; i++)
-		//std::cout << asd << "\n";
-
 
 
 
