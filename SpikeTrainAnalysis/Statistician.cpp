@@ -320,12 +320,18 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 
 	std::vector<std::vector<unsigned int>> SpikesCountResampled(ResampledSets,std::vector<unsigned int>(NoBins)); // Good! Resampling Matrix, this is annoying but necessary to obtain the standard deviation.
 	std::vector<unsigned int> SpikesSTDCount(ResampledSets);
+
 	//Vars when working with Z test
 	std::vector<double> SpikesSTDResampled(NoBins); // STD vector. STD is obtained across ResampledSets of mean trials.
 	std::vector<double> SpikesPResampled(NoBins); // Vector for probabilities scores.
-	//Vars when working with pointwise comp fujisawa, 2008.
+
+	//Vars when working with PermTest comp fujisawa, 2008.
 	std::vector<uint32_t> LPWBand(NoBins); //
 	std::vector<uint32_t> UPWBand(NoBins);
+	int PValPlace = (int)std::ceil(double(SpikesCountResampled.size() * ZorPVal) / 2.0);
+	std::vector<std::vector<uint32_t>> LPWBands(PValPlace, std::vector<uint32_t>(NoBins));
+	std::vector<std::vector<uint32_t>> UPWBands(PValPlace, std::vector<uint32_t>(NoBins));
+	std::pair<uint32_t, uint32_t> GlobalBands(0, 0);
 	mu.unlock();
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -393,15 +399,19 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 			switch (StatTest)
 			{
 			case ZTEST:
-				if (PrepZTest(SpikesSTDCount, SpikesCountResampled, SpikesSTDResampled, SpikesPResampled, CountRes) && (CountCorr != 0))
+				if ((CountCorr != 0) && PrepZTest(SpikesSTDCount, SpikesCountResampled, SpikesSTDResampled, SpikesPResampled, CountRes))
 				{
 					ZTestToFile(SpikesSTDResampled, SpikesCountCorr, SpikesPCorr,
 						SpikesPResampled, CountCorr, BinExcluded, ZorPVal, CorrFile, ReferenceUnit, TargetUnit, CountRes);
 				}
 				break;
 
-			case POINTWISE:
-				auto GlobalBands = PrepPointwise(SpikesSTDCount, SpikesCountResampled, LPWBand, UPWBand, CountRes, ZorPVal); //Compute Corr Jittering method.
+			case PERMUTATIONTEST:
+				if ((CountCorr != 0) && PrepPermTest(SpikesSTDCount, SpikesCountResampled, LPWBand, UPWBand, GlobalBands,
+					ZorPVal, PValPlace, LPWBands, UPWBands))
+				{
+					PermTestToFile(GlobalBands, SpikesCountCorr, LPWBand, UPWBand, CountCorr, CorrFile, ReferenceUnit, TargetUnit);
+				}
 				break;
 			}
 	
@@ -498,14 +508,10 @@ bool Statistician::PrepZTest(std::vector<unsigned int>& SpikesSTDCount, std::vec
 	return true; //Return true if all the code is excecuted.
 }
 
-std::pair<uint32_t, uint32_t> Statistician::PrepPointwise(std::vector<uint32_t>& SpikesSTDCount, std::vector<std::vector<uint32_t>>& SpikesCountResampled,
-	std::vector<uint32_t>& LPWBand, std::vector<uint32_t>& UPWBand, uint32_t CountRes,double PVal)
+bool Statistician::PrepPermTest(std::vector<uint32_t>& SpikesSTDCount, std::vector<std::vector<uint32_t>>& SpikesCountResampled,
+	std::vector<uint32_t>& LPWBand, std::vector<uint32_t>& UPWBand, std::pair<uint32_t, uint32_t>& GlobalBands, double PVal, int PValPlace,
+	std::vector<std::vector<uint32_t>>& LPWBands, std::vector<std::vector<uint32_t>>& UPWBands)
 {
-	int PValPlace = (int)std::ceil(double(SpikesCountResampled.size() * PVal) / 2.0);
-	std::vector<std::vector<uint32_t>> LPWBands(PValPlace, std::vector<uint32_t>(NoBins));
-	std::vector<std::vector<uint32_t>> UPWBands(PValPlace, std::vector<uint32_t>(NoBins));
-
-
 	for (int Bin = 0; Bin < NoBins; Bin++)
 	{
 		//Looping through the Matrix and filling the STDCount Vector.
@@ -519,10 +525,15 @@ std::pair<uint32_t, uint32_t> Statistician::PrepPointwise(std::vector<uint32_t>&
 
 		}
 
+		//If we have a zero this means we have an unpopulated resampled correlogram which is useless for statistical comparisons.
+		if(std::accumulate(SpikesSTDCount.begin(), SpikesSTDCount.end(), 0) == 0)
+			return false;
+
+		//Sorting the Resampled data to get the points at the desire PVal
 		std::sort(SpikesSTDCount.begin(), SpikesSTDCount.end());
 
+		//Filling the Pointwise bands Matrix.
 		int ProvPlace = PValPlace;
-
 		for (auto LPWsit = LPWBands.begin(), UPWsit = UPWBands.begin(), End = LPWBands.end();
 			LPWsit < End; ++LPWsit, ++UPWsit)
 		{
@@ -539,9 +550,7 @@ std::pair<uint32_t, uint32_t> Statistician::PrepPointwise(std::vector<uint32_t>&
 
 	}
 
-	//Loop for gettting the P of surrogate data sets that break the pointwise bands at ANY point, that is the PVal of the global band that corresponds to the alpha of the Pairwise bands.
-
-
+	//Loop for gettting the P of surrogate data sets that break the Pointwise bands at ANY point, that is the PVal of the global band that corresponds to the alpha of the Pairwise bands.
 	for (auto LPWVecit = LPWBands.cbegin(), UPWVecit = UPWBands.cbegin(), Ends = LPWBands.cend();
 		LPWVecit < Ends; ++LPWVecit, ++UPWVecit)
 	{
@@ -564,18 +573,25 @@ std::pair<uint32_t, uint32_t> Statistician::PrepPointwise(std::vector<uint32_t>&
 
 		if ((double)PWCount / (double)SpikesCountResampled.size() <= PVal)
 		{
-
+			//Defining global bands.
 			auto LowBand = std::min_element(LPWVecit->begin(), LPWVecit->end());
-			auto UpperBand = std::min_element(UPWVecit->begin(), UPWVecit->end());
+			auto UpperBand = std::max_element(UPWVecit->begin(), UPWVecit->end());
 
-			return std::pair<uint32_t, uint32_t>(*LowBand,*UpperBand);
+			GlobalBands.first = *LowBand;
+			GlobalBands.second = *UpperBand;
+
+			return true;
 		}
 	}
 
+	//Defining global bands as the extremes in case the Pval is too low.
 	auto LowBand = std::min_element(LPWBands.rbegin()->begin(), LPWBands.rbegin()->end());
-	auto UpperBand = std::min_element(UPWBands.rbegin()->begin(), UPWBands.rbegin()->end());
+	auto UpperBand = std::max_element(UPWBands.rbegin()->begin(), UPWBands.rbegin()->end());
 
-	return std::pair<uint32_t, uint32_t>(*LowBand, *UpperBand);
+	GlobalBands.first = *LowBand;
+	GlobalBands.second = *UpperBand;
+
+	return true;
 }
 
 void Statistician::ZTestToFile(std::vector<double>& SpikesSTDResampled, std::vector<unsigned int>& SpikesCountCorr, std::vector<double>& SpikesPCorr,
@@ -667,6 +683,113 @@ void Statistician::ZTestToFile(std::vector<double>& SpikesSTDResampled, std::vec
 		WriteToFileWorkerT(CorrFile, SpikesPCorr, 1);
 		WriteToFileWorkerT(CorrFile, SpikesPResampled, CountRes);
 		CorrFile << MeanSTD << ", " << "\n";
+	}
+	mu.unlock();
+}
+
+void Statistician::PermTestToFile(std::pair<uint32_t, uint32_t>& GlobalBands, std::vector<uint32_t>& SpikesCountCorr, std::vector<uint32_t>& LPWBand, std::vector<uint32_t>& UPWBand, unsigned int CountCorr, std::ofstream& CorrFile, uint16_t ReferenceUnit, uint16_t TargetUnit)
+{
+	//Writing Significant Correlations to File.
+
+	bool LeadEx = false;
+	bool LagEx = false;
+	bool LeadIn = false;
+	bool LagIn = false;
+
+	//Check significant corrs.
+	auto LeadExC = std::count_if(SpikesCountCorr.end() - (SpikesCountCorr.size() / 2), SpikesCountCorr.end(),
+		[&GlobalBands](uint32_t& RawVal)
+		{
+			return RawVal > GlobalBands.second;
+		});
+	auto LagExC = std::count_if(SpikesCountCorr.begin(), SpikesCountCorr.begin() + (SpikesCountCorr.size() / 2),
+		[&GlobalBands](uint32_t& RawVal)
+		{
+			return RawVal > GlobalBands.second;
+		});
+	auto LeadInC = std::count_if(SpikesCountCorr.end() - (SpikesCountCorr.size() / 2), SpikesCountCorr.end(),
+		[&GlobalBands](uint32_t& RawVal)
+		{
+			return RawVal < GlobalBands.first;
+		});
+	auto LagInC = std::count_if(SpikesCountCorr.begin(), SpikesCountCorr.begin() + (SpikesCountCorr.size() / 2),
+		[&GlobalBands](uint32_t& RawVal)
+		{
+			return RawVal < GlobalBands.first;
+		});
+
+	//Verify that sig corrs are not due to common stimulus modulation. thin significant bins represent that.
+	if (LeadExC == 1 || LeadExC == 2)
+		LeadEx = true;
+
+	if (LagExC == 1 || LagExC == 2)
+		LagEx = true;
+
+	if (LeadInC == 1 || LeadInC == 2)
+		LeadIn = true;
+
+	if (LagInC == 1 || LagInC == 2)
+		LagIn = true;
+
+	mu.lock();
+	if (LeadEx && LagEx)
+	{
+		//Code to store in txt files.
+		CorrFile << 1 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
+		WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
+		WriteToFileWorkerT(CorrFile, LPWBand, 1);
+		WriteToFileWorkerT(CorrFile, UPWBand, CountCorr);
+		CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << "\n";
+	}
+	else if (LeadEx)
+	{
+		CorrFile << 2 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
+		WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
+		WriteToFileWorkerT(CorrFile, LPWBand, 1);
+		WriteToFileWorkerT(CorrFile, UPWBand, CountCorr);
+		CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << "\n";
+	}
+	else if (LagEx)
+	{
+		CorrFile << 3 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
+		WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
+		WriteToFileWorkerT(CorrFile, LPWBand, 1);
+		WriteToFileWorkerT(CorrFile, UPWBand, CountCorr);
+		CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << "\n";
+	}
+
+	if (LeadIn && LagIn)
+	{
+		CorrFile << 4 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
+		WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
+		WriteToFileWorkerT(CorrFile, LPWBand, 1);
+		WriteToFileWorkerT(CorrFile, UPWBand, CountCorr);
+		CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << "\n";
+	}
+	else if (LeadIn)
+	{
+		CorrFile << 5 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
+		WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
+		WriteToFileWorkerT(CorrFile, LPWBand, 1);
+		WriteToFileWorkerT(CorrFile, UPWBand, CountCorr);
+		CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << "\n";
+	}
+	else if (LagIn)
+	{
+		CorrFile << 6 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
+		WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
+		WriteToFileWorkerT(CorrFile, LPWBand, 1);
+		WriteToFileWorkerT(CorrFile, UPWBand, CountCorr);
+		CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << "\n";
+	}
+
+	if ((LeadIn || LagIn) && (LeadEx || LagEx))
+	{
+		CorrFile << 7 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
+		WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
+		WriteToFileWorkerT(CorrFile, LPWBand, 1);
+		WriteToFileWorkerT(CorrFile, UPWBand, CountCorr);
+		CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << "\n";
 	}
 	mu.unlock();
 }
