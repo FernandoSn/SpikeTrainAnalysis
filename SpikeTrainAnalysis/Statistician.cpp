@@ -255,15 +255,18 @@ void Statistician::SpikeTrainJitter(const std::vector<double>& reference, const 
 				RangeL = std::lower_bound(RangeF, targetcpy.end(), CurrentBinL);
 			}
 
-			RangeF = std::upper_bound(RangeF, targetcpy.end(), CurrentBinF);
+			//RangeF = std::upper_bound(RangeF, targetcpy.end(), CurrentBinF);
 
 			for (; Bin < LastBin; ++Bin)
 			{
 
 				*Bin += (unsigned int)std::distance(RangeF, RangeL);
 
+				/*RangeF = RangeL;
+				RangeL = std::upper_bound(RangeF, targetcpy.end(), CurrentBinL);*/
+
 				RangeF = RangeL;
-				RangeL = std::upper_bound(RangeF, targetcpy.end(), CurrentBinL);
+				RangeL = std::lower_bound(RangeF, targetcpy.end(), CurrentBinL);
 
 				CurrentBinF = CurrentBinL;
 				CurrentBinL = CurrentBinF + BinSizeSec;
