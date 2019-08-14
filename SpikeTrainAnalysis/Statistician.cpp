@@ -225,7 +225,7 @@ void Statistician::SpikeTrainJitter(const std::vector<double>& reference, const 
 			CurrentBinL = CurrentBinF + BinSizeSec;
 
 			//Boundaries of the target spikes.
-			LBit = std::lower_bound(LBit, targetcpy.end(), Spike - EpochSec);
+			LBit = std::lower_bound(LBit, targetcpy.end(), CurrentBinF);
 			auto UBit = std::upper_bound(LBit, targetcpy.end(), Spike + EpochSec);
 
 			if (LBit <= Jitteredit)
@@ -241,31 +241,30 @@ void Statistician::SpikeTrainJitter(const std::vector<double>& reference, const 
 
 			//Ierators for Count Corr vec
 			auto Bin = Spikes->begin(), LastBin = Spikes->end();
-			/*auto RangeF = LBit;
-			auto RangeL = LBit;*/
+			auto RangeF = LBit;
+			auto RangeL = std::lower_bound(RangeF, targetcpy.end(), CurrentBinL);
 
 			for (; Bin < LastBin - (NoBins / 2); ++Bin)
 			{
-				*Bin += (unsigned int)std::count_if(LBit, //std library stuff, very convenient and fast.
-					UBit,
-					[&CurrentBinF, &CurrentBinL](double TargetSpike)
-					{
-						return TargetSpike >= CurrentBinF && TargetSpike < CurrentBinL;
-					}
-				);
+				*Bin += (unsigned int)std::distance(RangeF, RangeL);
+				
 				CurrentBinF = CurrentBinL;
 				CurrentBinL = CurrentBinF + BinSizeSec;
+
+				RangeF = RangeL;
+				RangeL = std::lower_bound(RangeF, targetcpy.end(), CurrentBinL);
 			}
+
+			RangeF = std::upper_bound(RangeF, targetcpy.end(), CurrentBinF);
 
 			for (; Bin < LastBin; ++Bin)
 			{
-				*Bin += (unsigned int)std::count_if(LBit, //std library stuff, very convenient and fast.
-					UBit,
-					[&CurrentBinF, &CurrentBinL](double TargetSpike)
-					{
-						return TargetSpike > CurrentBinF && TargetSpike <= CurrentBinL;
-					}
-				);
+
+				*Bin += (unsigned int)std::distance(RangeF, RangeL);
+
+				RangeF = RangeL;
+				RangeL = std::upper_bound(RangeF, targetcpy.end(), CurrentBinL);
+
 				CurrentBinF = CurrentBinL;
 				CurrentBinL = CurrentBinF + BinSizeSec;
 			}
