@@ -335,7 +335,7 @@ void Statistician::RunThreadPool(int ResampledSets, uint8_t ResamplingMethod, ui
 	}
 }
 
-void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, uint8_t ResamplingMethod, uint8_t StatTest, double ZorPVal, bool ExcZeroLag)
+void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, uint8_t ResamplingMethod, uint8_t StatTest, double PVal, bool ExcZeroLag)
 {
 
 	//NOTE: Im not convienced that STD matrices are the best way to deal with the problem. They are well allocated but anyway they may impact the performance,
@@ -358,19 +358,14 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 	//std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	std::vector<unsigned int> SpikesCountCorr(NoBins); //Main raw correlation Vector
-	std::vector<double> SpikesPCorr(NoBins); // Vector for probabilities and Z scores. P stands for probability.
 
 	std::vector<std::vector<unsigned int>> SpikesCountResampled(ResampledSets,std::vector<unsigned int>(NoBins)); // Good! Resampling Matrix, this is annoying but necessary to obtain the standard deviation.
 	std::vector<unsigned int> SpikesSTDCount(ResampledSets);
 
-	//Vars when working with Z test
-	std::vector<double> SpikesSTDResampled(NoBins); // STD vector. STD is obtained across ResampledSets of mean trials.
-	std::vector<double> SpikesPResampled(NoBins); // Vector for probabilities scores.
-
 	//Vars when working with PermTest comp fujisawa, 2008.
 	std::vector<uint32_t> LPWBand(NoBins); //
 	std::vector<uint32_t> UPWBand(NoBins);
-	int PValPlace = (int)std::ceil(double(SpikesCountResampled.size() * ZorPVal) / 2.0);
+	int PValPlace = (int)std::ceil(double(SpikesCountResampled.size() * PVal) / 2.0);
 	std::vector<std::vector<uint32_t>> LPWBands(PValPlace, std::vector<uint32_t>(NoBins));
 	std::vector<std::vector<uint32_t>> UPWBands(PValPlace, std::vector<uint32_t>(NoBins));
 	std::pair<uint32_t, uint32_t> GlobalBands(0, 0);
@@ -395,80 +390,267 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 		RefTrain < endRT
 		; ++RefTrain, ReferenceUnit++)
 	{
-		//Stimulus locked target spike train loop
-		unsigned short TargetUnit = 1;
-		for (auto TarTrain = SLSTB + ((__int64)Stimulus * UnitsTar),
-			endTT = TarTrain + UnitsTar;
-			TarTrain < endTT
-			; ++TarTrain, TargetUnit++)
+		if (ReferenceUnit == 37)
 		{
-			auto RefTrialTrain = RefTrain; //this is the downside of the way I parse the matlab data.
-			auto TarTrialTrain = TarTrain; //Aux vars to prevent modification of original vars.
-			unsigned int CountCorr = 0;
-			unsigned int CountRes = 0;
-
-			//Trial Loop/////////////////////////////////////////////////////////////////////////
-			for (int Trial = 0; Trial < Trials;
-				RefTrialTrain += UnitsRef, TarTrialTrain += UnitsTar, Trial++)
+			//Stimulus locked target spike train loop
+			unsigned short TargetUnit = 1;
+			for (auto TarTrain = SLSTB + ((__int64)Stimulus * UnitsTar),
+				endTT = TarTrain + UnitsTar;
+				TarTrain < endTT
+				; ++TarTrain, TargetUnit++)
 			{
-				if ((RefTrialTrain->size() != 0 && TarTrialTrain->size() != 0)) //Check if trains are not empty.
+				auto RefTrialTrain = RefTrain; //this is the downside of the way I parse the matlab data.
+				auto TarTrialTrain = TarTrain; //Aux vars to prevent modification of original vars.
+				unsigned int CountCorr = 0;
+				unsigned int CountRes = 0;
+
+				//Trial Loop/////////////////////////////////////////////////////////////////////////
+				for (int Trial = 0; Trial < Trials;
+					RefTrialTrain += UnitsRef, TarTrialTrain += UnitsTar, Trial++)
 				{
-					SpikeTrainCorr(*RefTrialTrain, *TarTrialTrain, SpikesCountCorr, CountCorr); //Compute Corr.
-
-					switch (ResamplingMethod)
+					if ((RefTrialTrain->size() != 0 && TarTrialTrain->size() != 0)) //Check if trains are not empty.
 					{
-					case SHUFFLING:
-						SpikeTrainShuffle(*RefTrialTrain, *TarTrialTrain, SpikesCountResampled, CountRes); //Compute Corr shuffling method.
-						break;
+						SpikeTrainCorr(*RefTrialTrain, *TarTrialTrain, SpikesCountCorr, CountCorr); //Compute Corr.
 
-					case JITTERING:
-						SpikeTrainJitter(*RefTrialTrain, *TarTrialTrain, SpikesCountResampled, CountRes); //Compute Corr Jittering method.
-						break;
+						switch (ResamplingMethod)
+						{
+						case SHUFFLING:
+							SpikeTrainShuffle(*RefTrialTrain, *TarTrialTrain, SpikesCountResampled, CountRes); //Compute Corr shuffling method.
+							break;
 
-					default:
-						SpikeTrainShuffle(*RefTrialTrain, *TarTrialTrain, SpikesCountResampled, CountRes);
-						break;
+						case JITTERING:
+							SpikeTrainJitter(*RefTrialTrain, *TarTrialTrain, SpikesCountResampled, CountRes); //Compute Corr Jittering method.
+							break;
+
+						default:
+							SpikeTrainShuffle(*RefTrialTrain, *TarTrialTrain, SpikesCountResampled, CountRes);
+							break;
+						}
 					}
 				}
-			}
-			/////////////////////////////////////////////////////////////////////////////////////
+				/////////////////////////////////////////////////////////////////////////////////////
+
+				//////////////////////////////////////////Use to be PrepPermTest/////////////////////////////////////////////////////////////////////////////////
 
 
-			
-			//Mean and STD of the matrix and vectors of the choosen resampling method.///////////
-			CountRes /= ResampledSets; //This needs to be divided into ResampledSets because that is the size of the Matrix, is not a vector anymore.
+				//Mean and STD of the matrix and vectors of the choosen resampling method.///////////
+				CountRes /= ResampledSets; //This needs to be divided into ResampledSets because that is the size of the Matrix, is not a vector anymore.
+				bool GoodData = true;
+				bool GoodAlpha = false;
 
-			switch (StatTest)
-			{
-			case ZTEST:
-				if ((CountCorr != 0) && PrepZTest(SpikesSTDCount, SpikesCountResampled, SpikesSTDResampled, SpikesPResampled, CountRes))
+				for (int Bin = 0; Bin < NoBins; Bin++)
 				{
-					ZTestToFile(SpikesSTDResampled, SpikesCountCorr, SpikesPCorr,
-						SpikesPResampled, CountCorr, BinExcluded, ZorPVal, CorrFile, ReferenceUnit, TargetUnit, CountRes);
+					//Looping through the Matrix and filling the STDCount Vector.
+					auto STDCount = SpikesSTDCount.begin();
+					auto STDCountEnd = SpikesSTDCount.end();
+					for (auto BinVec = SpikesCountResampled.cbegin(), BinVecEnd = SpikesCountResampled.cend();
+						BinVec < BinVecEnd;
+						++BinVec, ++STDCount)
+					{
+						*STDCount = *(BinVec->begin() + Bin);
+
+					}
+
+					//If we have a zero this means we have an unpopulated resampled correlogram which is useless for statistical comparisons.
+					if (std::accumulate(SpikesSTDCount.begin(), SpikesSTDCount.end(), 0) == 0)
+					{
+						GoodData = false;
+						break;
+					}
+
+					//Sorting the Resampled data to get the points at the desire PVal
+					std::sort(SpikesSTDCount.begin(), SpikesSTDCount.end());
+
+					//Filling the Pointwise bands Matrix.
+					int ProvPlace = PValPlace;
+					for (auto LPWsit = LPWBands.begin(), UPWsit = UPWBands.begin(), End = LPWBands.end();
+						LPWsit < End; ++LPWsit, ++UPWsit)
+					{
+
+						*(LPWsit->begin() + Bin) = *(SpikesSTDCount.begin() + ProvPlace - 1);
+						*(UPWsit->begin() + Bin) = *(SpikesSTDCount.end() - ProvPlace);
+
+						ProvPlace--;
+					}
+
+					//Pointwise bands.
+					*(LPWBand.begin() + Bin) = *(SpikesSTDCount.begin() + PValPlace - 1); // Low Pval.
+					*(UPWBand.begin() + Bin) = *(SpikesSTDCount.end() - PValPlace); // Upper Val.
+
 				}
-				break;
 
-			case PERMUTATIONTEST:
-				if ((CountCorr != 0) && PrepPermTest(SpikesSTDCount, SpikesCountResampled, LPWBand, UPWBand, GlobalBands,
-					ZorPVal, PValPlace, LPWBands, UPWBands))
+				//Loop for gettting the P of surrogate data sets that break the Pointwise bands at ANY point, that is the PVal of the global band that corresponds to the alpha of the Pairwise bands.
+				for (auto LPWVecit = LPWBands.cbegin(), UPWVecit = UPWBands.cbegin(), Ends = LPWBands.cend();
+					LPWVecit < Ends; ++LPWVecit, ++UPWVecit)
 				{
-					PermTestToFile(GlobalBands, SpikesCountCorr, LPWBand, UPWBand, CountCorr, CorrFile, ReferenceUnit, TargetUnit);
+					uint32_t PWCount = 0;
+
+					for (auto BinVec = SpikesCountResampled.cbegin(), BinVecEnd = SpikesCountResampled.cend();
+						BinVec < BinVecEnd;
+						++BinVec)
+					{
+						for (auto LPWit = LPWVecit->cbegin(), UPWit = UPWVecit->cbegin(), End = LPWVecit->cend(), ResDatait = BinVec->cbegin();
+							LPWit < End; ++LPWit, ++UPWit, ++ResDatait)
+						{
+							if (*ResDatait < *LPWit || *ResDatait > * UPWit)
+							{
+								PWCount += 1;
+								break;
+							}
+						}
+					}
+
+					if ((double)PWCount / (double)SpikesCountResampled.size() <= PVal)
+					{
+						//Defining global bands.
+						auto LowBand = std::min_element(LPWVecit->begin(), LPWVecit->end());
+						auto UpperBand = std::max_element(UPWVecit->begin(), UPWVecit->end());
+
+						GlobalBands.first = *LowBand;
+						GlobalBands.second = *UpperBand;
+
+						GoodAlpha = true;
+					}
 				}
-				break;
-			}
-	
-			//Reseting Count Vectors and Matrix;
-			std::fill(SpikesCountCorr.begin(), SpikesCountCorr.end(), 0);
 
-			std::for_each(SpikesCountResampled.begin(), SpikesCountResampled.end(),
-				[](std::vector<unsigned int>& BinVec)
+
+				if (!GoodAlpha)
 				{
-					std::fill(BinVec.begin(), BinVec.end(), 0);
-				});
+					//Defining global bands as the extremes in case the Pval is too low.
+					auto LowBand = std::min_element(LPWBands.rbegin()->begin(), LPWBands.rbegin()->end());
+					auto UpperBand = std::max_element(UPWBands.rbegin()->begin(), UPWBands.rbegin()->end());
 
-			mu.lock();
-			std::cout << "Stimulus " << Stimulus + 1 <<". Finished reference unit "<< ReferenceUnit << " vs target unit " << TargetUnit <<  ".\n";
-			mu.unlock();
+					GlobalBands.first = *LowBand;
+					GlobalBands.second = *UpperBand;
+
+				}
+
+				////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+				/////////////////////////////////////////////Permutation Test///////////////////////////////////////////////////////////////////////////////////
+
+				if ((CountCorr != 0) && GoodData)
+				{
+					//Writing Significant Correlations to File.
+
+					bool LeadEx = false;
+					bool LagEx = false;
+					bool LeadIn = false;
+					bool LagIn = false;
+
+					//Check significant corrs.
+					auto LeadExC = std::count_if(SpikesCountCorr.end() - (SpikesCountCorr.size() / 2), SpikesCountCorr.end(),
+						[&GlobalBands](uint32_t& RawVal)
+						{
+							return RawVal > GlobalBands.second;
+						});
+					auto LagExC = std::count_if(SpikesCountCorr.begin(), SpikesCountCorr.begin() + (SpikesCountCorr.size() / 2),
+						[&GlobalBands](uint32_t& RawVal)
+						{
+							return RawVal > GlobalBands.second;
+						});
+					auto LeadInC = std::count_if(SpikesCountCorr.end() - (SpikesCountCorr.size() / 2), SpikesCountCorr.end(),
+						[&GlobalBands](uint32_t& RawVal)
+						{
+							return RawVal < GlobalBands.first;
+						});
+					auto LagInC = std::count_if(SpikesCountCorr.begin(), SpikesCountCorr.begin() + (SpikesCountCorr.size() / 2),
+						[&GlobalBands](uint32_t& RawVal)
+						{
+							return RawVal < GlobalBands.first;
+						});
+
+					//Verify that sig corrs are not due to common stimulus modulation. thin significant bins represent that.
+					if (LeadExC == 1 || LeadExC == 2)
+						LeadEx = true;
+
+					if (LagExC == 1 || LagExC == 2)
+						LagEx = true;
+
+					if (LeadInC == 1 || LeadInC == 2)
+						LeadIn = true;
+
+					if (LagInC == 1 || LagInC == 2)
+						LagIn = true;
+
+					mu.lock();
+					if (LeadEx && LagEx)
+					{
+						//Code to store in txt files.
+						CorrFile << 1 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
+						WriteToFileWorkerT(CorrFile, SpikesCountCorr);
+						WriteToFileWorkerT(CorrFile, LPWBand);
+						WriteToFileWorkerT(CorrFile, UPWBand);
+						CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << "\n";
+					}
+					else if (LeadEx)
+					{
+						CorrFile << 2 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
+						WriteToFileWorkerT(CorrFile, SpikesCountCorr);
+						WriteToFileWorkerT(CorrFile, LPWBand);
+						WriteToFileWorkerT(CorrFile, UPWBand);
+						CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << "\n";
+					}
+					else if (LagEx)
+					{
+						CorrFile << 3 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
+						WriteToFileWorkerT(CorrFile, SpikesCountCorr);
+						WriteToFileWorkerT(CorrFile, LPWBand);
+						WriteToFileWorkerT(CorrFile, UPWBand);
+						CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << "\n";
+					}
+
+					if (LeadIn && LagIn)
+					{
+						CorrFile << 4 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
+						WriteToFileWorkerT(CorrFile, SpikesCountCorr);
+						WriteToFileWorkerT(CorrFile, LPWBand);
+						WriteToFileWorkerT(CorrFile, UPWBand);
+						CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << "\n";
+					}
+					else if (LeadIn)
+					{
+						CorrFile << 5 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
+						WriteToFileWorkerT(CorrFile, SpikesCountCorr);
+						WriteToFileWorkerT(CorrFile, LPWBand);
+						WriteToFileWorkerT(CorrFile, UPWBand);
+						CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << "\n";
+					}
+					else if (LagIn)
+					{
+						CorrFile << 6 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
+						WriteToFileWorkerT(CorrFile, SpikesCountCorr);
+						WriteToFileWorkerT(CorrFile, LPWBand);
+						WriteToFileWorkerT(CorrFile, UPWBand);
+						CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << "\n";
+					}
+
+					if ((LeadIn || LagIn) && (LeadEx || LagEx))
+					{
+						CorrFile << 7 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
+						WriteToFileWorkerT(CorrFile, SpikesCountCorr);
+						WriteToFileWorkerT(CorrFile, LPWBand);
+						WriteToFileWorkerT(CorrFile, UPWBand);
+						CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << "\n";
+					}
+					mu.unlock();
+				}
+
+				////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+				//Reseting Count Vectors and Matrix;
+				std::fill(SpikesCountCorr.begin(), SpikesCountCorr.end(), 0);
+
+				std::for_each(SpikesCountResampled.begin(), SpikesCountResampled.end(),
+					[](std::vector<unsigned int>& BinVec)
+					{
+						std::fill(BinVec.begin(), BinVec.end(), 0);
+					});
+
+				mu.lock();
+				std::cout << "Stimulus " << Stimulus + 1 << ". Finished reference unit " << ReferenceUnit << " vs target unit " << TargetUnit << ".\n";
+				mu.unlock();
+			}
 		}
 	}
 
@@ -495,343 +677,4 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 		std::cout << "stream state is eofbit\n";
 		mu.unlock();
 	}
-}
-
-void Statistician::WriteToFileWorker(std::ofstream& CorrFile, std::vector<double>& CorrVec, uint32_t CountCorr)
-{
-	std::for_each(CorrVec.begin(), CorrVec.end(),
-		[&CorrFile,&CountCorr](double& Bin)
-		{
-			CorrFile << Bin * CountCorr << ", ";
-		});
-	CorrFile << CountCorr << ", ";
-}
-
-bool Statistician::PrepZTest(std::vector<unsigned int>& SpikesSTDCount, std::vector<std::vector<unsigned int>>& SpikesCountResampled,
-	std::vector<double>& SpikesSTDResampled, std::vector<double>& SpikesPResampled, uint32_t CountRes )
-{
-	for (int Bin = 0; Bin < NoBins; Bin++)
-	{
-		//Looping through the Matrix and filling the STDCount Vector.
-		auto STDCount = SpikesSTDCount.begin();
-		auto STDCountEnd = SpikesSTDCount.end();
-		for (auto BinVec = SpikesCountResampled.cbegin(), BinVecEnd = SpikesCountResampled.cend();
-			BinVec < BinVecEnd;
-			++BinVec, ++STDCount)
-		{
-			*STDCount = *(BinVec->begin() + Bin);
-
-		}
-
-		//Math for the params that are needed by the Z Test
-		double BinMean = (double)std::accumulate(SpikesSTDCount.begin(), SpikesSTDCount.end(), 0) / (double)SpikesCountResampled.size();
-
-		//Necesary check for unpopulated resampled correlograms. false positives can be assumed if this is not checked, although this is not the best way to code it. Bad design.
-		if (BinMean == 0)
-		{
-			return false; //Return false because is a badresampling
-		}
-
-		double BinVariance = 0.0;
-
-		for (STDCount = SpikesSTDCount.begin(); STDCount < STDCountEnd; ++STDCount)
-		{
-			BinVariance += ((double)(*STDCount) - BinMean) * ((double)(*STDCount) - BinMean);
-		}
-		BinVariance /= ((double)SpikesCountResampled.size() - 1.0); // this is Variance over N. Matlab uses Bessels correction to compute STD. Actually Im gonna use Bessels correction.
-
-		*(SpikesSTDResampled.begin() + Bin) = std::sqrt(BinVariance) / (double)CountRes; // Stand deviation to my STD vector.
-		*(SpikesPResampled.begin() + Bin) = BinMean / (double)CountRes;
-
-
-		STDCount = SpikesSTDCount.begin(); // Reseting the iterator of the vector.
-	}
-
-	return true; //Return true if all the code is excecuted.
-}
-
-bool Statistician::PrepPermTest(std::vector<uint32_t>& SpikesSTDCount, std::vector<std::vector<uint32_t>>& SpikesCountResampled,
-	std::vector<uint32_t>& LPWBand, std::vector<uint32_t>& UPWBand, std::pair<uint32_t, uint32_t>& GlobalBands, double PVal, int PValPlace,
-	std::vector<std::vector<uint32_t>>& LPWBands, std::vector<std::vector<uint32_t>>& UPWBands)
-{
-	for (int Bin = 0; Bin < NoBins; Bin++)
-	{
-		//Looping through the Matrix and filling the STDCount Vector.
-		auto STDCount = SpikesSTDCount.begin();
-		auto STDCountEnd = SpikesSTDCount.end();
-		for (auto BinVec = SpikesCountResampled.cbegin(), BinVecEnd = SpikesCountResampled.cend();
-			BinVec < BinVecEnd;
-			++BinVec, ++STDCount)
-		{
-			*STDCount = *(BinVec->begin() + Bin);
-
-		}
-
-		//If we have a zero this means we have an unpopulated resampled correlogram which is useless for statistical comparisons.
-		if(std::accumulate(SpikesSTDCount.begin(), SpikesSTDCount.end(), 0) == 0)
-			return false;
-
-		//Sorting the Resampled data to get the points at the desire PVal
-		std::sort(SpikesSTDCount.begin(), SpikesSTDCount.end());
-
-		//Filling the Pointwise bands Matrix.
-		int ProvPlace = PValPlace;
-		for (auto LPWsit = LPWBands.begin(), UPWsit = UPWBands.begin(), End = LPWBands.end();
-			LPWsit < End; ++LPWsit, ++UPWsit)
-		{
-
-			*(LPWsit->begin() + Bin) = *(SpikesSTDCount.begin() + ProvPlace - 1);
-			*(UPWsit->begin() + Bin) = *(SpikesSTDCount.end() - ProvPlace);
-
-			ProvPlace--;
-		}
-
-		//Pointwise bands.
-		*(LPWBand.begin() + Bin) = *(SpikesSTDCount.begin() + PValPlace - 1); // Low Pval.
-		*(UPWBand.begin() + Bin) = *(SpikesSTDCount.end() - PValPlace); // Upper Val.
-
-	}
-
-	//Loop for gettting the P of surrogate data sets that break the Pointwise bands at ANY point, that is the PVal of the global band that corresponds to the alpha of the Pairwise bands.
-	for (auto LPWVecit = LPWBands.cbegin(), UPWVecit = UPWBands.cbegin(), Ends = LPWBands.cend();
-		LPWVecit < Ends; ++LPWVecit, ++UPWVecit)
-	{
-		uint32_t PWCount = 0;
-
-		for (auto BinVec = SpikesCountResampled.cbegin(), BinVecEnd = SpikesCountResampled.cend();
-			BinVec < BinVecEnd;
-			++BinVec)
-		{
-				for (auto LPWit = LPWVecit->cbegin(), UPWit = UPWVecit->cbegin(), End = LPWVecit->cend(), ResDatait = BinVec->cbegin();
-					LPWit < End; ++LPWit, ++UPWit, ++ResDatait)
-				{
-					if (*ResDatait < *LPWit || *ResDatait > *UPWit)
-					{
-						PWCount += 1;
-						break;
-					}
-				}
-		}
-
-		if ((double)PWCount / (double)SpikesCountResampled.size() <= PVal)
-		{
-			//Defining global bands.
-			auto LowBand = std::min_element(LPWVecit->begin(), LPWVecit->end());
-			auto UpperBand = std::max_element(UPWVecit->begin(), UPWVecit->end());
-
-			GlobalBands.first = *LowBand;
-			GlobalBands.second = *UpperBand;
-
-			return true;
-		}
-	}
-
-	//Defining global bands as the extremes in case the Pval is too low.
-	auto LowBand = std::min_element(LPWBands.rbegin()->begin(), LPWBands.rbegin()->end());
-	auto UpperBand = std::max_element(UPWBands.rbegin()->begin(), UPWBands.rbegin()->end());
-
-	GlobalBands.first = *LowBand;
-	GlobalBands.second = *UpperBand;
-
-	return true;
-}
-
-void Statistician::ZTestToFile(std::vector<double>& SpikesSTDResampled, std::vector<unsigned int>& SpikesCountCorr, std::vector<double>& SpikesPCorr,
-	std::vector<double>& SpikesPResampled, unsigned int CountCorr, int BinExcluded, double ZorPVal, std::ofstream& CorrFile, uint16_t ReferenceUnit, uint16_t TargetUnit, uint32_t CountRes)
-{
-	double MeanSTD = (double)std::accumulate(SpikesSTDResampled.begin(), SpikesSTDResampled.end(), 0.0) / (double)SpikesSTDResampled.size();
-
-	//Fill the Probability Vector.
-	std::transform(SpikesCountCorr.begin(), SpikesCountCorr.end(),
-		SpikesPCorr.begin(),
-		[&CountCorr](unsigned int& Bin) -> double { return (double)Bin / (double)CountCorr; });
-
-	//Z Transform.
-	std::transform(SpikesPCorr.begin(), SpikesPCorr.end(), SpikesPResampled.begin(), SpikesPCorr.begin(),
-		[&MeanSTD](double& PBin, double& MeanBin) -> double { return (PBin - MeanBin) / MeanSTD; });
-
-	//Writing Significant Correlations to File.
-	bool LeadEx = std::any_of(SpikesPCorr.end() - (SpikesPCorr.size() / 2) + BinExcluded, SpikesPCorr.end(),
-		[&ZorPVal](double& ZorRVal) {return ZorRVal > ZorPVal; });
-	bool LagEx = std::any_of(SpikesPCorr.begin(), SpikesPCorr.begin() + (SpikesPCorr.size() / 2) - BinExcluded,
-		[&ZorPVal](double& ZorRVal) {return ZorRVal > ZorPVal; });
-	bool LeadIn = std::any_of(SpikesPCorr.end() - (SpikesPCorr.size() / 2) + BinExcluded, SpikesPCorr.end(),
-		[&ZorPVal](double& ZorRVal) {return ZorRVal < -ZorPVal; });
-	bool LagIn = std::any_of(SpikesPCorr.begin(), SpikesPCorr.begin() + (SpikesPCorr.size() / 2) - BinExcluded,
-		[&ZorPVal](double& ZorRVal) {return ZorRVal < -ZorPVal; });
-
-	mu.lock();
-	if (LeadEx && LagEx)
-	{
-		//Comented code for binary files
-		/*unsigned short CorrType = 1;
-		CorrFile.write(reinterpret_cast<char*>(&CorrType), 2);
-		CorrFile.write(reinterpret_cast<char*>(&ReferenceUnit), 2);
-		CorrFile.write(reinterpret_cast<char*>(&TargetUnit), 2);*/
-
-		//Code to store in txt files.
-		CorrFile << 1 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
-		WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
-		WriteToFileWorkerT(CorrFile, SpikesPCorr, 1);
-		WriteToFileWorkerT(CorrFile, SpikesPResampled, CountRes);
-		CorrFile << MeanSTD << ", " << "\n";
-	}
-	else if (LeadEx)
-	{
-		CorrFile << 2 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
-		WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
-		WriteToFileWorkerT(CorrFile, SpikesPCorr, 1);
-		WriteToFileWorkerT(CorrFile, SpikesPResampled, CountRes);
-		CorrFile << MeanSTD << ", " << "\n";
-	}
-	else if (LagEx)
-	{
-		CorrFile << 3 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
-		WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
-		WriteToFileWorkerT(CorrFile, SpikesPCorr, 1);
-		WriteToFileWorkerT(CorrFile, SpikesPResampled, CountRes);
-		CorrFile << MeanSTD << ", " << "\n";
-	}
-
-	if (LeadIn && LagIn)
-	{
-		CorrFile << 4 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
-		WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
-		WriteToFileWorkerT(CorrFile, SpikesPCorr, 1);
-		WriteToFileWorkerT(CorrFile, SpikesPResampled, CountRes);
-		CorrFile << MeanSTD << ", " << "\n";
-	}
-	else if (LeadIn)
-	{
-		CorrFile << 5 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
-		WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
-		WriteToFileWorkerT(CorrFile, SpikesPCorr, 1);
-		WriteToFileWorkerT(CorrFile, SpikesPResampled, CountRes);
-		CorrFile << MeanSTD << ", " << "\n";
-	}
-	else if (LagIn)
-	{
-		CorrFile << 6 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
-		WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
-		WriteToFileWorkerT(CorrFile, SpikesPCorr, 1);
-		WriteToFileWorkerT(CorrFile, SpikesPResampled, CountRes);
-		CorrFile << MeanSTD << ", " << "\n";
-	}
-
-	if ((LeadIn || LagIn) && (LeadEx || LagEx))
-	{
-		CorrFile << 7 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
-		WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
-		WriteToFileWorkerT(CorrFile, SpikesPCorr, 1);
-		WriteToFileWorkerT(CorrFile, SpikesPResampled, CountRes);
-		CorrFile << MeanSTD << ", " << "\n";
-	}
-	mu.unlock();
-}
-
-void Statistician::PermTestToFile(std::pair<uint32_t, uint32_t>& GlobalBands, std::vector<uint32_t>& SpikesCountCorr, std::vector<uint32_t>& LPWBand, std::vector<uint32_t>& UPWBand, unsigned int CountCorr, std::ofstream& CorrFile, uint16_t ReferenceUnit, uint16_t TargetUnit)
-{
-	//Writing Significant Correlations to File.
-
-	bool LeadEx = false;
-	bool LagEx = false;
-	bool LeadIn = false;
-	bool LagIn = false;
-
-	//Check significant corrs.
-	auto LeadExC = std::count_if(SpikesCountCorr.end() - (SpikesCountCorr.size() / 2), SpikesCountCorr.end(),
-		[&GlobalBands](uint32_t& RawVal)
-		{
-			return RawVal > GlobalBands.second;
-		});
-	auto LagExC = std::count_if(SpikesCountCorr.begin(), SpikesCountCorr.begin() + (SpikesCountCorr.size() / 2),
-		[&GlobalBands](uint32_t& RawVal)
-		{
-			return RawVal > GlobalBands.second;
-		});
-	auto LeadInC = std::count_if(SpikesCountCorr.end() - (SpikesCountCorr.size() / 2), SpikesCountCorr.end(),
-		[&GlobalBands](uint32_t& RawVal)
-		{
-			return RawVal < GlobalBands.first;
-		});
-	auto LagInC = std::count_if(SpikesCountCorr.begin(), SpikesCountCorr.begin() + (SpikesCountCorr.size() / 2),
-		[&GlobalBands](uint32_t& RawVal)
-		{
-			return RawVal < GlobalBands.first;
-		});
-
-	//Verify that sig corrs are not due to common stimulus modulation. thin significant bins represent that.
-	if (LeadExC == 1 || LeadExC == 2)
-		LeadEx = true;
-
-	if (LagExC == 1 || LagExC == 2)
-		LagEx = true;
-
-	if (LeadInC == 1 || LeadInC == 2)
-		LeadIn = true;
-
-	if (LagInC == 1 || LagInC == 2)
-		LagIn = true;
-
-	mu.lock();
-	if (LeadEx && LagEx)
-	{
-		//Code to store in txt files.
-		CorrFile << 1 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
-		WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
-		WriteToFileWorkerT(CorrFile, LPWBand, 1);
-		WriteToFileWorkerT(CorrFile, UPWBand, CountCorr);
-		CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << "\n";
-	}
-	else if (LeadEx)
-	{
-		CorrFile << 2 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
-		WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
-		WriteToFileWorkerT(CorrFile, LPWBand, 1);
-		WriteToFileWorkerT(CorrFile, UPWBand, CountCorr);
-		CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << "\n";
-	}
-	else if (LagEx)
-	{
-		CorrFile << 3 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
-		WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
-		WriteToFileWorkerT(CorrFile, LPWBand, 1);
-		WriteToFileWorkerT(CorrFile, UPWBand, CountCorr);
-		CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << "\n";
-	}
-
-	if (LeadIn && LagIn)
-	{
-		CorrFile << 4 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
-		WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
-		WriteToFileWorkerT(CorrFile, LPWBand, 1);
-		WriteToFileWorkerT(CorrFile, UPWBand, CountCorr);
-		CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << "\n";
-	}
-	else if (LeadIn)
-	{
-		CorrFile << 5 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
-		WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
-		WriteToFileWorkerT(CorrFile, LPWBand, 1);
-		WriteToFileWorkerT(CorrFile, UPWBand, CountCorr);
-		CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << "\n";
-	}
-	else if (LagIn)
-	{
-		CorrFile << 6 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
-		WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
-		WriteToFileWorkerT(CorrFile, LPWBand, 1);
-		WriteToFileWorkerT(CorrFile, UPWBand, CountCorr);
-		CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << "\n";
-	}
-
-	if ((LeadIn || LagIn) && (LeadEx || LagEx))
-	{
-		CorrFile << 7 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
-		WriteToFileWorkerT(CorrFile, SpikesCountCorr, 1);
-		WriteToFileWorkerT(CorrFile, LPWBand, 1);
-		WriteToFileWorkerT(CorrFile, UPWBand, CountCorr);
-		CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << "\n";
-	}
-	mu.unlock();
 }
