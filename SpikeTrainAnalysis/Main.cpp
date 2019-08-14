@@ -28,11 +28,12 @@ int main()
 	int Epoch = 5; //Miliseconds. Epoch for the analysis.
 	double Interval = 1.0; //Seconds. Interval used for statician ctor with PREX enabled.
 	uint8_t ResamplingMethod = JITTERING; //Select the resampling Method.
-	uint8_t StatTest = ZTEST; //Select the Statistics.
+	uint8_t StatTest = PERMUTATIONTEST; //Select the Statistics. If PERMUTATIONTEST, ExcZeroLag is ignored.
 	int ResampledSets = 1000; //Recommended 100 for shuffle (Burgos-Robles,2017), 1000 for jittering (Fujisawa,2008)
-	double ZThresh = 3.89; //You should calculate this threshold with a two tail Z table. Divide 0.01 / NoBins and then look for the corresponding Z value.
+	double ZThreshorPVal = 0.01; //You should calculate this threshold with a two tail Z table. Divide 0.01 / NoBins and then look for the corresponding Z value.
 	//p < 0.01 : 3.23 for 8 bins, 3.29 for 10 bins.... p < 0.001 3.84 for 8 bins, 3.89 for 10 bins
-	bool ExcZeroLag = true; //Important this should only be selected true when the binsize is 1ms if its greater its gonna return garbage.
+	//Put the desire alpha level in this param when using the permutation test.
+	bool ExcZeroLag = false; //Important this should only be selected true when the binsize is 1ms if its greater its gonna return garbage.
 	
 	if (Epoch % BinSize)
 	{
@@ -53,13 +54,13 @@ int main()
 			std::cout << std::thread::hardware_concurrency() << " concurrent threads are supported.\n"
 				<< "You no. of stimuli (Odors) should be less or equal than this number.\n";
 			std::cin.get();
-			SpikeJuggler.RunThreadPool(ResampledSets,ResamplingMethod, StatTest, ZThresh, ExcZeroLag);
+			SpikeJuggler.RunThreadPool(ResampledSets,ResamplingMethod, StatTest, ZThreshorPVal, ExcZeroLag);
 		}
 		else
 		{
 			std::cout << "Starting in a single thread.\n";
 			std::cin.get();
-			SpikeJuggler.RunSingleThread(ResampledSets, ResamplingMethod, StatTest, ZThresh, ExcZeroLag);
+			SpikeJuggler.RunSingleThread(ResampledSets, ResamplingMethod, StatTest, ZThreshorPVal, ExcZeroLag);
 		}
 	}
 	else
@@ -71,13 +72,13 @@ int main()
 			std::cout << std::thread::hardware_concurrency() << " concurrent threads are supported.\n"
 				<< "You no. of stimuli (Odors) should be less or equal than this number\n";
 			std::cin.get();
-			SpikeJuggler.RunThreadPool(ResampledSets, ResamplingMethod, StatTest,  ZThresh, ExcZeroLag);
+			SpikeJuggler.RunThreadPool(ResampledSets, ResamplingMethod, StatTest,  ZThreshorPVal, ExcZeroLag);
 		}
 		else
 		{
 			std::cout << "Starting in a single thread.\n";
 			std::cin.get();
-			SpikeJuggler.RunSingleThread(ResampledSets, ResamplingMethod, StatTest, ZThresh, ExcZeroLag);
+			SpikeJuggler.RunSingleThread(ResampledSets, ResamplingMethod, StatTest, ZThreshorPVal, ExcZeroLag);
 		}
 	}
 
