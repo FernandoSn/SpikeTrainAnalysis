@@ -222,9 +222,15 @@ void Statistician::SpikeTrainJitter(const std::vector<double>& reference, const 
 
 
 	//Setting Pseudo Random Number Uniform Distribution for jittering [-5ms, 5ms] (Fujisawa, 2018)
+	//Fujisawa window is not useful for me, I chose a smalles time window [-2ms, 2ms].
+	//A current limitation is that I am working with time and not with samples. Time can be tricky due to the finite length of the decimal places of the double data type.
+	//I need to try this again using samples instead of time stamps, to do that I need to edit some code on MATLAB.
+
 	std::uniform_real_distribution<double> distribution(-0.005, 0.005);
+	//std::normal_distribution<double> distribution(0,0.001);
 	std::vector<double> JitteredTarget(target.size());
 
+	std::ofstream DistFile("Dist.txt"); //asdasdadsfffffffffffffffhjjjj
 
 	for (auto Spikes = SpikesMatrix.begin(), SMEnd = SpikesMatrix.end(); Spikes < SMEnd; ++Spikes)
 	{
@@ -234,7 +240,6 @@ void Statistician::SpikeTrainJitter(const std::vector<double>& reference, const 
 
 		std::transform(target.cbegin(), target.cend(), JitteredTarget.begin(), //Jittering here!
 			[this, &distribution](const double& Spike) { return Spike + distribution(Generator); });
-
 
 		SpikeTrainCorr(reference, JitteredTarget, *Spikes,Count);
 
@@ -347,7 +352,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 	//Vars when working with PermTest comp fujisawa, 2008.
 	std::vector<uint32_t> LPWBand(NoBins); //
 	std::vector<uint32_t> UPWBand(NoBins);
-	int PValPlace = (int)std::ceil(double(SpikesCountResampled.size() * PVal) / 2.0);
+	int PValPlace = (int)std::ceil(double(ResampledSets * PVal) / 2.0);
 	std::vector<std::vector<uint32_t>> LPWBands(PValPlace, std::vector<uint32_t>(NoBins));
 	std::vector<std::vector<uint32_t>> UPWBands(PValPlace, std::vector<uint32_t>(NoBins));
 	std::pair<uint32_t, uint32_t> GlobalBands(0, 0);
@@ -356,7 +361,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	//File for storing the sig data.
 	std::ofstream CorrFile("Stimulus" + std::to_string(Stimulus + 1) + ".txt");
-	std::ofstream JitteredMatrixFile("JitteredMatrix" + std::to_string(Stimulus + 1) + ".txt");
+	//std::ofstream JitteredMatrixFile("JitteredMatrix" + std::to_string(Stimulus + 1) + ".txt");
 
 	//Check if we want to exclude "zero lag" correlations.
 	int BinExcluded = 0;
@@ -380,7 +385,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 				TarTrain < endTT
 				; ++TarTrain, TargetUnit++)
 			{
-				if (TargetUnit == 3)
+				//if (TargetUnit == 49)
 				{
 					auto RefTrialTrain = RefTrain; //this is the downside of the way I parse the matlab data.
 					auto TarTrialTrain = TarTrain; //Aux vars to prevent modification of original vars.
@@ -472,8 +477,8 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 							BinVec < BinVecEnd;
 							++BinVec)
 						{
-							WriteToFileWorkerT(JitteredMatrixFile, *BinVec);
-							JitteredMatrixFile << "\n";
+							//WriteToFileWorkerT(JitteredMatrixFile, *BinVec);
+							//JitteredMatrixFile << "\n";
 							for (auto LPWit = LPWVecit->cbegin(), UPWit = UPWVecit->cbegin(), End = LPWVecit->cend(), ResDatait = BinVec->cbegin();
 								LPWit < End; ++LPWit, ++UPWit, ++ResDatait)
 							{
@@ -500,7 +505,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 					}
 
 
-					//if (!GoodAlpha)
+					if (!GoodAlpha)
 					{
 						//Defining global bands as the extremes in case the Pval is too low.
 						auto LowBand = std::min_element(LPWBands.rbegin()->begin(), LPWBands.rbegin()->end());
@@ -519,48 +524,13 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 					{
 						//Writing Significant Correlations to File.
 
-						bool LeadEx = false;
-						bool LagEx = false;
-						bool LeadIn = false;
-						bool LagIn = false;
+						bool SigArray[4] = { false };
 
-						//Check significant corrs.
-						auto LeadExC = std::count_if(SpikesCountCorr.end() - (SpikesCountCorr.size() / 2) + 1, SpikesCountCorr.end() - 1,
-							[&GlobalBands](uint32_t& RawVal)
-							{
-								return RawVal > GlobalBands.second;
-							});
-						auto LagExC = std::count_if(SpikesCountCorr.begin() + 1 , SpikesCountCorr.begin() + (SpikesCountCorr.size() / 2) - 1,
-							[&GlobalBands](uint32_t& RawVal)
-							{
-								return RawVal > GlobalBands.second;
-							});
-						auto LeadInC = std::count_if(SpikesCountCorr.end() - (SpikesCountCorr.size() / 2) + 1, SpikesCountCorr.end() - 1,
-							[&GlobalBands](uint32_t& RawVal)
-							{
-								return RawVal < GlobalBands.first;
-							});
-						auto LagInC = std::count_if(SpikesCountCorr.begin() + 1, SpikesCountCorr.begin() + (SpikesCountCorr.size() / 2) - 1,
-							[&GlobalBands](uint32_t& RawVal)
-							{
-								return RawVal < GlobalBands.first;
-							});
-
-						//Verify that sig corrs are not due to common stimulus modulation. thin significant bins represent that.
-						if (LeadExC == 1 || LeadExC == 2)
-							LeadEx = true;
-
-						if (LagExC == 1 || LagExC == 2)
-							LagEx = true;
-
-						if (LeadInC == 1 || LeadInC == 2)
-							LeadIn = true;
-
-						if (LagInC == 1 || LagInC == 2)
-							LagIn = true;
+						GetSignifcantCorr(SpikesCountCorr, SigArray, GlobalBands, LPWBand, UPWBand);
 
 						mu.lock();
-						if (LeadEx && LagEx)
+						
+						if (SigArray[0] && SigArray[1])
 						{
 							//Code to store in txt files.
 							CorrFile << 1 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
@@ -569,7 +539,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 							WriteToFileWorkerT(CorrFile, UPWBand);
 							CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << GoodAlpha << ", " << "\n";
 						}
-						else if (LeadEx)
+						else if (SigArray[0])
 						{
 							CorrFile << 2 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
 							WriteToFileWorkerT(CorrFile, SpikesCountCorr);
@@ -577,7 +547,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 							WriteToFileWorkerT(CorrFile, UPWBand);
 							CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << GoodAlpha << ", " << "\n";
 						}
-						else if (LagEx)
+						else if (SigArray[1])
 						{
 							CorrFile << 3 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
 							WriteToFileWorkerT(CorrFile, SpikesCountCorr);
@@ -586,7 +556,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 							CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << GoodAlpha << ", " << "\n";
 						}
 
-						if (LeadIn && LagIn)
+						if (SigArray[2] && SigArray[3])
 						{
 							CorrFile << 4 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
 							WriteToFileWorkerT(CorrFile, SpikesCountCorr);
@@ -594,7 +564,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 							WriteToFileWorkerT(CorrFile, UPWBand);
 							CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << GoodAlpha << ", " << "\n";
 						}
-						else if (LeadIn)
+						else if (SigArray[2])
 						{
 							CorrFile << 5 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
 							WriteToFileWorkerT(CorrFile, SpikesCountCorr);
@@ -602,7 +572,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 							WriteToFileWorkerT(CorrFile, UPWBand);
 							CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << GoodAlpha << ", " << "\n";
 						}
-						else if (LagIn)
+						else if (SigArray[3])
 						{
 							CorrFile << 6 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
 							WriteToFileWorkerT(CorrFile, SpikesCountCorr);
@@ -610,8 +580,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 							WriteToFileWorkerT(CorrFile, UPWBand);
 							CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << GoodAlpha << ", " << "\n";
 						}
-
-						if ((LeadIn || LagIn) && (LeadEx || LagEx))
+						if ((SigArray[2] || SigArray[3]) && (SigArray[0] || SigArray[1]))
 						{
 							CorrFile << 7 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
 							WriteToFileWorkerT(CorrFile, SpikesCountCorr);

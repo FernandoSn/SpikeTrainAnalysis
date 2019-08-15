@@ -5,16 +5,10 @@
 #include <fstream>
 
 #include "Statistician.h"
-
+#include <numeric>
 int main()
 {
-
-	int asd = 10;
-
-	int& refasd = asd;
-
-	int asdcopy = refasd;
-	//This is not professional coding. to my taste class are well designed maybe the thread pool or MasterCorr on Statistician
+	//This is not professional code. to my taste, the classes are well designed maybe the thread pool or MasterCorr on Statistician
 	//needs more work because a have a ton of code in one method but its acceptable.
 	//The part that is really bad is the user input, first to input different parameters you need to edit this code, you dont have IO.
 	//Second I didnt implement any exception system, this program doesnt have a way to detect semantic erros, specially in the statistics
