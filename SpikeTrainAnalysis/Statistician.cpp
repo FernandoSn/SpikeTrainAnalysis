@@ -355,9 +355,8 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	//File for storing the sig data.
-	//std::ofstream CorrFile("Stimulus" + std::to_string(Stimulus + 1) + ".SigCorr", std::ios::binary);
 	std::ofstream CorrFile("Stimulus" + std::to_string(Stimulus + 1) + ".txt");
-
+	std::ofstream JitteredMatrixFile("JitteredMatrix" + std::to_string(Stimulus + 1) + ".txt");
 
 	//Check if we want to exclude "zero lag" correlations.
 	int BinExcluded = 0;
@@ -381,7 +380,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 				TarTrain < endTT
 				; ++TarTrain, TargetUnit++)
 			{
-				//if (TargetUnit == 3)
+				if (TargetUnit == 3)
 				{
 					auto RefTrialTrain = RefTrain; //this is the downside of the way I parse the matlab data.
 					auto TarTrialTrain = TarTrain; //Aux vars to prevent modification of original vars.
@@ -469,10 +468,12 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 					{
 						uint32_t PWCount = 0;
 
-						for (auto BinVec = SpikesCountResampled.cbegin(), BinVecEnd = SpikesCountResampled.cend();
+						for (auto BinVec = SpikesCountResampled.begin(), BinVecEnd = SpikesCountResampled.end();
 							BinVec < BinVecEnd;
 							++BinVec)
 						{
+							WriteToFileWorkerT(JitteredMatrixFile, *BinVec);
+							JitteredMatrixFile << "\n";
 							for (auto LPWit = LPWVecit->cbegin(), UPWit = UPWVecit->cbegin(), End = LPWVecit->cend(), ResDatait = BinVec->cbegin();
 								LPWit < End; ++LPWit, ++UPWit, ++ResDatait)
 							{
@@ -499,7 +500,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 					}
 
 
-					if (!GoodAlpha)
+					//if (!GoodAlpha)
 					{
 						//Defining global bands as the extremes in case the Pval is too low.
 						auto LowBand = std::min_element(LPWBands.rbegin()->begin(), LPWBands.rbegin()->end());
@@ -524,22 +525,22 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 						bool LagIn = false;
 
 						//Check significant corrs.
-						auto LeadExC = std::count_if(SpikesCountCorr.end() - (SpikesCountCorr.size() / 2), SpikesCountCorr.end(),
+						auto LeadExC = std::count_if(SpikesCountCorr.end() - (SpikesCountCorr.size() / 2) + 1, SpikesCountCorr.end() - 1,
 							[&GlobalBands](uint32_t& RawVal)
 							{
 								return RawVal > GlobalBands.second;
 							});
-						auto LagExC = std::count_if(SpikesCountCorr.begin(), SpikesCountCorr.begin() + (SpikesCountCorr.size() / 2),
+						auto LagExC = std::count_if(SpikesCountCorr.begin() + 1 , SpikesCountCorr.begin() + (SpikesCountCorr.size() / 2) - 1,
 							[&GlobalBands](uint32_t& RawVal)
 							{
 								return RawVal > GlobalBands.second;
 							});
-						auto LeadInC = std::count_if(SpikesCountCorr.end() - (SpikesCountCorr.size() / 2), SpikesCountCorr.end(),
+						auto LeadInC = std::count_if(SpikesCountCorr.end() - (SpikesCountCorr.size() / 2) + 1, SpikesCountCorr.end() - 1,
 							[&GlobalBands](uint32_t& RawVal)
 							{
 								return RawVal < GlobalBands.first;
 							});
-						auto LagInC = std::count_if(SpikesCountCorr.begin(), SpikesCountCorr.begin() + (SpikesCountCorr.size() / 2),
+						auto LagInC = std::count_if(SpikesCountCorr.begin() + 1, SpikesCountCorr.begin() + (SpikesCountCorr.size() / 2) - 1,
 							[&GlobalBands](uint32_t& RawVal)
 							{
 								return RawVal < GlobalBands.first;
