@@ -172,20 +172,34 @@ void Statistician::SpikeTrainCorr(const std::vector<double>& reference, const st
 
 		auto First = LBit;
 		auto Last = LBit;
-		STAUpperBoundT(Last, UBit, CurrentBinL);
+		STAUpperBoundTExc(Last, UBit, CurrentBinL);
 
 		//Ierators for Count Corr vec
 		auto Bin = Spikes.begin(), LastBin = Spikes.end();
 
-		for (; Bin < LastBin - (NoBins / 2); ++Bin)
+
+
+		/////This loops are written this way to avoid counting zero lag correlations. They are implemented using pointer
+		// aritmethic with custom made functions. STA stands for Spike Train Analysis.
+
+		for (; Bin < LastBin - (NoBins / 2) - 1 ; ++Bin)
 		{
 			*Bin += (unsigned int)std::distance(First, Last);
 			CurrentBinF = CurrentBinL;
 			CurrentBinL = CurrentBinF + BinSizeSec;
 
 			First = Last;
-			STAUpperBoundT(Last, UBit, CurrentBinL);
+			STAUpperBoundTExc(Last, UBit, CurrentBinL);
 		}
+
+		*Bin += (unsigned int)std::distance(First, Last);
+		CurrentBinF = CurrentBinL;
+		CurrentBinL = CurrentBinF + BinSizeSec;
+
+		STALowerBoundTExc(First, UBit, CurrentBinF);
+		STAUpperBoundT(Last, UBit, CurrentBinL);
+
+		++Bin;
 
 		for (; Bin < LastBin; ++Bin)
 		{
@@ -197,7 +211,6 @@ void Statistician::SpikeTrainCorr(const std::vector<double>& reference, const st
 			STAUpperBoundT(Last, UBit, CurrentBinL);
 		}
 	}
-	//std::cout << "Shuff2: " << "\n";
 	Count += (unsigned int)reference.size();
 }
 
@@ -217,16 +230,17 @@ void Statistician::SpikeTrainJitter(const std::vector<double>& reference, const 
 	{
 		//Computes Correlations separated by bins;
 
-		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+		//std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+
 		std::transform(target.cbegin(), target.cend(), JitteredTarget.begin(), //Jittering here!
 			[this, &distribution](const double& Spike) { return Spike + distribution(Generator); });
 
 
 		SpikeTrainCorr(reference, JitteredTarget, *Spikes,Count);
 
-		std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-		std::chrono::duration<float> duration = end - start;
-		std::cout << duration.count() << "\n";
+		//std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+		//std::chrono::duration<float> duration = end - start;
+		//std::cout << duration.count() << "\n";
 	}
 
 }
@@ -367,7 +381,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 				TarTrain < endTT
 				; ++TarTrain, TargetUnit++)
 			{
-				if (TargetUnit == 3)
+				//if (TargetUnit == 3)
 				{
 					auto RefTrialTrain = RefTrain; //this is the downside of the way I parse the matlab data.
 					auto TarTrialTrain = TarTrain; //Aux vars to prevent modification of original vars.

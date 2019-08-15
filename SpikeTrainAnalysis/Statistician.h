@@ -41,7 +41,7 @@ private:
 		//FI is the start iterator.
 		//LI should always be the end It of the container.
 
-		while (*FI < Limit && FI < (LI - 1))
+		while (FI < LI && *FI < Limit)
 		{
 			FI += 1;
 		}
@@ -50,7 +50,7 @@ private:
 	template <class Iterator, class DataType>
 	void STAUpperBoundT(Iterator& FI, const Iterator& LI, DataType Limit)
 	{
-		while (*FI <= Limit && FI < LI)
+		while (FI < LI && *FI <= Limit)
 		{
 			FI += 1;
 		}
@@ -83,3 +83,6 @@ constexpr unsigned char JITTERING = 1;
 
 constexpr unsigned char ZTEST = 0;
 constexpr unsigned char PERMUTATIONTEST = 1;
+
+#define STALowerBoundTExc(FI, LI, Limit) STAUpperBoundT(FI, LI, Limit);
+#define STAUpperBoundTExc(FI, LI, Limit) STALowerBoundT(FI, LI, Limit);
