@@ -35,9 +35,26 @@ private:
 		CorrFile << 1 << ", ";
 	}
 
-	//void SpikeTrainShift(); // I dont know if Im gonna implement shift, seems that is not very useful for my actual experiment.
-	void STALowerBound(std::vector<double>::const_iterator& FI, const std::vector<double>::const_iterator& LI, double Limit);
-	void STAUpperBound(std::vector<double>::const_iterator& FI, const std::vector<double>::const_iterator& LI, double Limit);
+	template <class Iterator, class DataType>
+	void STALowerBoundT(Iterator& FI, const Iterator& LI, DataType Limit)
+	{
+		//FI is the start iterator.
+		//LI should always be the end It of the container.
+
+		while (*FI < Limit && FI < (LI - 1))
+		{
+			FI += 1;
+		}
+	}
+
+	template <class Iterator, class DataType>
+	void STAUpperBoundT(Iterator& FI, const Iterator& LI, DataType Limit)
+	{
+		while (*FI <= Limit && FI < LI)
+		{
+			FI += 1;
+		}
+	}
 
 private:
 
