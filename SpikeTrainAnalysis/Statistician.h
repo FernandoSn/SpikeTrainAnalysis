@@ -97,7 +97,6 @@ private:
 		if ((LagCount == 1 || LagCount == 2) && ((LagCount - *LagBeg - *(LagEnd - 1)) > 0))
 			SigArray[3] = true;
 
-		//asdasdasdas
 		/*auto LeadExC = std::count_if(CountVec.end() - (CountVec.size() / 2), CountVec.end(),
 			[&GlobalBands](T& RawVal)
 			{

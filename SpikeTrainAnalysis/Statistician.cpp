@@ -230,7 +230,7 @@ void Statistician::SpikeTrainJitter(const std::vector<double>& reference, const 
 	//std::normal_distribution<double> distribution(0,0.001);
 	std::vector<double> JitteredTarget(target.size());
 
-	std::ofstream DistFile("Dist.txt"); //asdasdadsfffffffffffffffhjjjj
+	//std::ofstream DistFile("Dist.txt");
 
 	for (auto Spikes = SpikesMatrix.begin(), SMEnd = SpikesMatrix.end(); Spikes < SMEnd; ++Spikes)
 	{
