@@ -156,48 +156,62 @@ void Statistician::SpikeTrainCorr(const std::vector<double>& reference, const st
 	double CurrentBinF;
 	double CurrentBinL;
 	auto LBit = target.begin();
+	auto UBit = target.begin();
 
-		//std::cout << "Shuff: " << "\n";
-	//for(auto Spike = reference.begin(), LastSpike = reference.end(); Spike < LastSpike; ++Spike)
+	//std::cout << "Shuff: " << "\n";
+//for(auto Spike = reference.begin(), LastSpike = reference.end(); Spike < LastSpike; ++Spike)
 	for (const double& Spike : reference)
 	{
 		CurrentBinF = Spike - EpochSec; // Set the current bins for the lambda function.
 		CurrentBinL = CurrentBinF + BinSizeSec;
 
 		//Boundaries of the target spikes.
-		LBit = std::lower_bound(LBit, target.end(), Spike - EpochSec);
-		auto UBit = std::upper_bound(LBit, target.end(), Spike + EpochSec);
+
+
+		//LBit = std::lower_bound(LBit, UBit, Spike - EpochSec);
+		//UBit = std::upper_bound(LBit, UBit, Spike + EpochSec);
+
+		/*while (*LBit < CurrentBinF && LBit < (target.end() - 1))
+		{
+			LBit += 1;
+		}
+
+		while (*UBit <= Spike + EpochSec && UBit < target.end())
+		{
+			UBit += 1;
+		}*/
+
+		STALowerBound(LBit, target.end(), Spike - EpochSec);
+		STAUpperBound(UBit, target.end(), Spike + EpochSec);
+
+		auto First = LBit;
+		auto Last = LBit;
+		STAUpperBound(Last, UBit, CurrentBinL);
 
 		//Ierators for Count Corr vec
 		auto Bin = Spikes.begin(), LastBin = Spikes.end();
 
-		for (; Bin < LastBin - (NoBins/2); ++Bin)
+		for (; Bin < LastBin - (NoBins / 2); ++Bin)
 		{
-			*Bin += (unsigned int)std::count_if(LBit, //std library stuff, very convenient and fast.
-				UBit,
-				[&CurrentBinF, &CurrentBinL](double TargetSpike) 
-				{
-					return TargetSpike >= CurrentBinF && TargetSpike < CurrentBinL; 
-				}
-			);
+			*Bin += (unsigned int)std::distance(First, Last);
 			CurrentBinF = CurrentBinL;
 			CurrentBinL = CurrentBinF + BinSizeSec;
+
+			First = Last;
+			STAUpperBound(Last, UBit, CurrentBinL);
 		}
 
 		for (; Bin < LastBin; ++Bin)
 		{
-			*Bin += (unsigned int)std::count_if(LBit, //std library stuff, very convenient and fast.
-				UBit,
-				[&CurrentBinF, &CurrentBinL](double TargetSpike)
-				{
-					return TargetSpike > CurrentBinF && TargetSpike <= CurrentBinL;
-				}
-			);
+			*Bin += (unsigned int)std::distance(First, Last);
 			CurrentBinF = CurrentBinL;
 			CurrentBinL = CurrentBinF + BinSizeSec;
+
+			First = Last;
+			STAUpperBound(Last, UBit, CurrentBinL);
 		}
 	}
-		//std::cout << "Shuff2: " << "\n";
+	//std::cout << "Shuff2: " << "\n";
 	Count += (unsigned int)reference.size();
 }
 
@@ -647,5 +661,24 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 		mu.lock();
 		std::cout << "stream state is eofbit\n";
 		mu.unlock();
+	}
+}
+
+void Statistician::STALowerBound(std::vector<double>::const_iterator& FI, const std::vector<double>::const_iterator& LI, double Limit)
+{
+	//FI is the start iterator.
+	//LI should always be the end It of the container.
+
+	while (*FI < Limit && FI < (LI - 1))
+	{
+		FI += 1;
+	}
+}
+
+void Statistician::STAUpperBound(std::vector<double>::const_iterator& FI, const std::vector<double>::const_iterator& LI, double Limit)
+{
+	while (*FI <= Limit && FI < LI)
+	{
+		FI += 1;
 	}
 }

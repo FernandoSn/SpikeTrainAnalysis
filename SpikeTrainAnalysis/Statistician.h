@@ -36,6 +36,8 @@ private:
 	}
 
 	//void SpikeTrainShift(); // I dont know if Im gonna implement shift, seems that is not very useful for my actual experiment.
+	void STALowerBound(std::vector<double>::const_iterator& FI, const std::vector<double>::const_iterator& LI, double Limit);
+	void STAUpperBound(std::vector<double>::const_iterator& FI, const std::vector<double>::const_iterator& LI, double Limit);
 
 private:
 

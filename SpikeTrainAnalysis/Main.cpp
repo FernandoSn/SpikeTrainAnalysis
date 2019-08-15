@@ -80,7 +80,7 @@ int main()
 		else
 		{
 			std::cout << "Starting in a single thread.\n";
-			std::cin.get();
+			//std::cin.get();
 			SpikeJuggler.RunSingleThread(ResampledSets, ResamplingMethod, StatTest, ZThreshorPVal, ExcZeroLag);
 		}
 	}
