@@ -21,10 +21,10 @@ int main()
 	bool IsSpontaneous = true; //For Spontanepus activity correlations. if this is false mutlithreading and PREX should be false.
 	bool MultiThreading = false; 
 	bool PREX = false; //Use first respiration, if its false its gonna use the Stimulus on and off.
-	std::string FileName("PfCxOdor.dat"); //Name of the File that was created with Matlab code.
-	int BinSize = 1; //Miliseconds.
-	int Epoch = 5; //Miliseconds. Epoch for the analysis.
-	double Interval = 1.0; //Seconds. Interval used for statician ctor with PREX enabled.
+	std::string FileName("PfCxOdorInt.dat"); //Name of the File that was created with Matlab code.
+	int BinSize = 30; //Samples.
+	int Epoch = 150; //Samples. Epoch for the analysis. 150 samples = 5ms
+	uint32_t Interval = 30000; //Seconds. Interval used for statician ctor with PREX enabled.
 	uint8_t ResamplingMethod = JITTERING; //Select the resampling Method.
 	uint8_t StatTest = PERMUTATIONTEST; //Select the Statistics. If PERMUTATIONTEST, ExcZeroLag is ignored.
 	int ResampledSets = 1000; //Recommended 100 for shuffle (Burgos-Robles,2017), 1000 for jittering (Fujisawa,2008)

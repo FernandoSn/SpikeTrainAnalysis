@@ -16,8 +16,6 @@ Statistician::Statistician(std::string FileName, int BinSize, int Epoch, bool Is
 	BinSize(BinSize),
 	Epoch(Epoch),
 	NoBins((Epoch / BinSize) * 2),
-	BinSizeSec((double)BinSize / 1000.0),
-	EpochSec((double)Epoch / 1000.0),
 	OdorEx(FileName,IsSpontaneous),
 	Reference(OdorEx.RDataFile(), OdorEx.GetUnitsRef(), OdorEx.GetRefSizePos(), OdorEx.GetRefTrainPos()),
 	Target(OdorEx.RDataFile(), OdorEx.GetUnitsTar(), OdorEx.GetTarSizePos(), OdorEx.GetTarTrainPos()),
@@ -38,13 +36,11 @@ Statistician::Statistician(std::string FileName, int BinSize, int Epoch, bool Is
 
 }
 
-Statistician::Statistician(std::string FileName, int BinSize, int Epoch, double Interval)
+Statistician::Statistician(std::string FileName, int BinSize, int Epoch, uint32_t Interval)
 	:
 	BinSize(BinSize),
 	Epoch(Epoch),
 	NoBins((Epoch / BinSize) * 2),
-	BinSizeSec((double)BinSize / 1000.0),
-	EpochSec((double)Epoch / 1000.0),
 	OdorEx(FileName,false),
 	Reference(OdorEx.RDataFile(), OdorEx.GetUnitsRef(), OdorEx.GetRefSizePos(), OdorEx.GetRefTrainPos()),
 	Target(OdorEx.RDataFile(), OdorEx.GetUnitsTar(), OdorEx.GetTarSizePos(), OdorEx.GetTarTrainPos()),
@@ -74,7 +70,7 @@ void Statistician::SetStimLockedSpikes()
 			ItSLSpikesRef->erase(std::copy_if(Unit->begin(),
 				Unit->end(),
 				ItSLSpikesRef->begin(),
-				[On, Off](double SpikeTime) {return SpikeTime > (*On) && SpikeTime < (*Off); }) //Lambda as predicate for the algorithm.
+				[On, Off](uint32_t SpikeTime) {return SpikeTime > (*On) && SpikeTime < (*Off); }) //Lambda as predicate for the algorithm.
 				,ItSLSpikesRef->end()); 
 
 			ItSLSpikesRef->shrink_to_fit(); //Free garbage memory of the Vector. Very important cause its HUGE waste in this case.
@@ -92,7 +88,7 @@ void Statistician::SetStimLockedSpikes()
 			ItSLSpikesTar->erase(std::copy_if(Unit->begin(),
 				Unit->end(),
 				ItSLSpikesTar->begin(),
-				[On, Off](double SpikeTime) {return SpikeTime > (*On) && SpikeTime < (*Off); }) //Lambda as predicate for the algorithm.
+				[On, Off](uint32_t SpikeTime) {return SpikeTime > (*On) && SpikeTime < (*Off); }) //Lambda as predicate for the algorithm.
 				, ItSLSpikesTar->end());
 
 			ItSLSpikesTar->shrink_to_fit(); //Free garbage memory of the Vector. Very important cause its HUGE waste in this case.
@@ -102,7 +98,7 @@ void Statistician::SetStimLockedSpikes()
 	}
 }
 
-void Statistician::SetPREXLockedSpikes(double Interval)
+void Statistician::SetPREXLockedSpikes(uint32_t Interval)
 {
 	auto ItSLSpikesRef = StimLockedSpikesRef.begin(); //Iterator to the begining of the Vector.
 	auto ItSLSpikesTar = StimLockedSpikesTar.begin(); //Iterator to the begining of the Vector.
@@ -121,7 +117,7 @@ void Statistician::SetPREXLockedSpikes(double Interval)
 			ItSLSpikesRef->erase(std::copy_if(Unit->begin(),
 				Unit->end(),
 				ItSLSpikesRef->begin(),
-				[PREXOn,Interval](double SpikeTime) {return SpikeTime > (*PREXOn) && SpikeTime < (*PREXOn) + Interval; }) //Lambda as predicate for the algorithm.
+				[PREXOn,Interval](uint32_t SpikeTime) {return SpikeTime > (*PREXOn) && SpikeTime < (*PREXOn) + Interval; }) //Lambda as predicate for the algorithm.
 				, ItSLSpikesRef->end());
 
 			ItSLSpikesRef->shrink_to_fit(); //Free garbage memory of the Vector. Very important cause its HUGE waste in this case.
@@ -139,7 +135,7 @@ void Statistician::SetPREXLockedSpikes(double Interval)
 			ItSLSpikesTar->erase(std::copy_if(Unit->begin(),
 				Unit->end(),
 				ItSLSpikesTar->begin(),
-				[PREXOn,Interval](double SpikeTime) {return SpikeTime > (*PREXOn) && SpikeTime < (*PREXOn) + Interval; }) //Lambda as predicate for the algorithm.
+				[PREXOn,Interval](uint32_t SpikeTime) {return SpikeTime > (*PREXOn) && SpikeTime < (*PREXOn) + Interval; }) //Lambda as predicate for the algorithm.
 				, ItSLSpikesTar->end());
 
 			ItSLSpikesTar->shrink_to_fit(); //Free garbage memory of the Vector. Very important cause its HUGE waste in this case.
@@ -149,26 +145,26 @@ void Statistician::SetPREXLockedSpikes(double Interval)
 	}
 }
 
-void Statistician::SpikeTrainCorr(const std::vector<double>& reference, const std::vector<double>& target, std::vector<unsigned int>& Spikes, unsigned int& Count)
+void Statistician::SpikeTrainCorr(const std::vector<uint32_t>& reference, const std::vector<uint32_t>& target, std::vector<unsigned int>& Spikes, unsigned int& Count)
 {
 	//Computes Correlations separated by bins;
 
-	double CurrentBinF;
-	double CurrentBinL;
+	uint32_t CurrentBinF;
+	uint32_t CurrentBinL;
 	auto LBit = target.begin();
 	auto UBit = target.begin();
 
 	//std::cout << "Shuff: " << "\n";
     //for(auto Spike = reference.begin(), LastSpike = reference.end(); Spike < LastSpike; ++Spike)
-	for (const double& Spike : reference)
+	for (const uint32_t& Spike : reference)
 	{
-		CurrentBinF = Spike - EpochSec; // Set the current bins for the lambda function.
-		CurrentBinL = CurrentBinF + BinSizeSec;
+		CurrentBinF = Spike - Epoch; // Set the current bins for the lambda function.
+		CurrentBinL = CurrentBinF + BinSize;
 
 		//Boundaries of the target spikes.
 
-		STALowerBoundT(LBit, target.end(), Spike - EpochSec);
-		STAUpperBoundT(UBit, target.end(), Spike + EpochSec);
+		STALowerBoundT(LBit, target.end(), Spike - Epoch);
+		STAUpperBoundT(UBit, target.end(), Spike + Epoch);
 
 		auto First = LBit;
 		auto Last = LBit;
@@ -186,7 +182,7 @@ void Statistician::SpikeTrainCorr(const std::vector<double>& reference, const st
 		{
 			*Bin += (unsigned int)std::distance(First, Last);
 			CurrentBinF = CurrentBinL;
-			CurrentBinL = CurrentBinF + BinSizeSec;
+			CurrentBinL = CurrentBinF + BinSize;
 
 			First = Last;
 			STAUpperBoundTExc(Last, UBit, CurrentBinL);
@@ -194,7 +190,7 @@ void Statistician::SpikeTrainCorr(const std::vector<double>& reference, const st
 
 		*Bin += (unsigned int)std::distance(First, Last);
 		CurrentBinF = CurrentBinL;
-		CurrentBinL = CurrentBinF + BinSizeSec;
+		CurrentBinL = CurrentBinF + BinSize;
 
 		STALowerBoundTExc(First, UBit, CurrentBinF);
 		STAUpperBoundT(Last, UBit, CurrentBinL);
@@ -205,7 +201,7 @@ void Statistician::SpikeTrainCorr(const std::vector<double>& reference, const st
 		{
 			*Bin += (unsigned int)std::distance(First, Last);
 			CurrentBinF = CurrentBinL;
-			CurrentBinL = CurrentBinF + BinSizeSec;
+			CurrentBinL = CurrentBinF + BinSize;
 
 			First = Last;
 			STAUpperBoundT(Last, UBit, CurrentBinL);
@@ -214,7 +210,7 @@ void Statistician::SpikeTrainCorr(const std::vector<double>& reference, const st
 	Count += (unsigned int)reference.size();
 }
 
-void Statistician::SpikeTrainJitter(const std::vector<double>& reference, const std::vector<double>& target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count)
+void Statistician::SpikeTrainJitter(const std::vector<uint32_t>& reference, const std::vector<uint32_t>& target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count)
 {
 
 	//This is bad because it is just copy pasta from the SpikeTrainCorr func and adding just a single Line for Jittering short intervals, but Im lazy to change the arquitecture.
@@ -226,10 +222,11 @@ void Statistician::SpikeTrainJitter(const std::vector<double>& reference, const 
 	//A current limitation is that I am working with time and not with samples. Time can be tricky due to the finite length of the decimal places of the double data type.
 	//I need to try this again using samples instead of time stamps, to do that I need to edit some code on MATLAB.
 
-	std::uniform_real_distribution<double> distribution(-0.005, 0.005);
+	//150 samples correspond to 5ms at 30000 kHz.
+	std::uniform_int_distribution<int> distribution(-150, 150);
 	//std::normal_distribution<double> distribution(0,0.001);
 	
-	std::vector<double> JitteredTarget(target.size());
+	std::vector<uint32_t> JitteredTarget(target.size());
 	//std::ofstream DistFile("Dist.txt");
 
 	for (auto Spikes = SpikesMatrix.begin(), SMEnd = SpikesMatrix.end(); Spikes < SMEnd; ++Spikes)
@@ -237,14 +234,14 @@ void Statistician::SpikeTrainJitter(const std::vector<double>& reference, const 
 		//Computes Correlations separated by bins
 
 		std::transform(target.cbegin(), target.cend(), JitteredTarget.begin(), //Jittering here!
-			[this, &distribution](const double& Spike) { return Spike + distribution(Generator); });
+			[this, &distribution](const uint32_t& Spike) { return Spike + distribution(Generator); });
 
 		SpikeTrainCorr(reference, JitteredTarget, *Spikes,Count);
 	}
 
 }
 
-void Statistician::SpikeTrainJitterCopy(const std::vector<double>& reference, std::vector<double> target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count)
+void Statistician::SpikeTrainJitterCopy(const std::vector<uint32_t>& reference, std::vector<uint32_t> target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count)
 {
 
 	//This is bad because it is just copy pasta from the SpikeTrainCorr func and adding just a single Line for Jittering short intervals, but Im lazy to change the arquitecture.
@@ -256,7 +253,8 @@ void Statistician::SpikeTrainJitterCopy(const std::vector<double>& reference, st
 	//A current limitation is that I am working with time and not with samples. Time can be tricky due to the finite length of the decimal places of the double data type.
 	//I need to try this again using samples instead of time stamps, to do that I need to edit some code on MATLAB.
 
-	std::uniform_real_distribution<double> distribution(-0.005, 0.005);
+	//150 samples correspond to 5ms at 30000 kHz.
+	std::uniform_int_distribution<int> distribution(-150, 150);
 	//std::normal_distribution<double> distribution(0,0.001);
 
 	//std::ofstream DistFile("Dist.txt");
@@ -266,19 +264,19 @@ void Statistician::SpikeTrainJitterCopy(const std::vector<double>& reference, st
 		//Computes Correlations separated by bins
 
 		std::for_each(target.begin(), target.end(),
-			[this, &distribution](double& Spike) { Spike += distribution(Generator); });
+			[this, &distribution](uint32_t& Spike) { Spike += distribution(Generator); });
 
 		SpikeTrainCorr(reference, target, *Spikes, Count);
 	}
 
 }
 
-void Statistician::SpikeTrainShuffle(const std::vector<double>& reference, std::vector<double> target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count)
+void Statistician::SpikeTrainShuffle(const std::vector<uint32_t>& reference, std::vector<uint32_t> target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count)
 {
 
-	double TargetMin;
-	double TargetMax;
-	double TargetRandom;
+	uint32_t TargetMin;
+	uint32_t TargetMax;
+	uint32_t TargetRandom;
 
 	//Setting Pseudo Random Number Uniform Distribution
 	std::uniform_int_distribution<int> distribution(0, (int)target.size()-1);
@@ -293,11 +291,11 @@ void Statistician::SpikeTrainShuffle(const std::vector<double>& reference, std::
 
 		std::for_each(target.begin(), 
 			RandomIt,
-			[&TargetMax, &TargetMin, &TargetRandom](double& Spike) { Spike += (TargetMax + TargetMin - TargetRandom); });
+			[&TargetMax, &TargetMin, &TargetRandom](uint32_t& Spike) { Spike += (TargetMax + TargetMin - TargetRandom); });
 
 		std::for_each(RandomIt,
 			target.end(),
-			[&TargetMin, &TargetRandom](double& Spike) { Spike -= (TargetRandom - TargetMin); });
+			[&TargetMin, &TargetRandom](uint32_t& Spike) { Spike -= (TargetRandom - TargetMin); });
 
 		std::sort(target.begin(), target.end());
 
