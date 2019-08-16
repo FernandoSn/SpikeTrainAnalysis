@@ -236,6 +236,8 @@ void Statistician::SpikeTrainJitter(const std::vector<uint32_t>& reference, cons
 		std::transform(target.cbegin(), target.cend(), JitteredTarget.begin(), //Jittering here!
 			[this, &distribution](const uint32_t& Spike) { return Spike + distribution(Generator); });
 
+		//std::sort(JitteredTarget.begin(), JitteredTarget.end());
+
 		SpikeTrainCorr(reference, JitteredTarget, *Spikes,Count);
 	}
 
@@ -647,7 +649,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 	{
 		CorrFile.close();
 		mu.lock();
-		std::cout << "Data file was closed successfully\n";
+		std::cout << "Output file was closed successfully\n";
 		mu.unlock();
 	}
 
