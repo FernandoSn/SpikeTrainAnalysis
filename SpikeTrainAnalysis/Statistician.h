@@ -22,6 +22,7 @@ private:
 	void SetPREXLockedSpikes(double Interval);
 	void SpikeTrainCorr(const std::vector<double>& reference, const std::vector<double>& target, std::vector<unsigned int>& Spikes, unsigned int& Count);
 	void SpikeTrainJitter(const std::vector<double>& reference, const std::vector<double>& target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count);
+	void SpikeTrainJitterCopy(const std::vector<double>& reference, std::vector<double> target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count);
 	void SpikeTrainShuffle(const std::vector<double>& reference, std::vector<double> target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count);
 	void MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, uint8_t ResamplingMethod, uint8_t StatTest, double ZorPVal, bool ExcZeroLag);
 	
@@ -87,7 +88,7 @@ private:
 		if ((LagCount == 1 || LagCount == 2) && ((LagCount - *LagBeg - *(LagEnd - 1)) > 0))
 		{
 			SigArray[1] = true;
-			SigLagPosition[0] = std::find(std::make_reverse_iterator(LagEnd - 1), std::make_reverse_iterator(LagBeg + 1), 1);
+			SigLagPosition[0] = std::find(std::make_reverse_iterator(LagEnd), std::make_reverse_iterator(LagBeg + 1), 1);
 		}
 
 		//Inhibitory Correlations
@@ -108,7 +109,7 @@ private:
 		if ((LagCount == 1 || LagCount == 2) && ((LagCount - *LagBeg - *(LagEnd - 1)) > 0))
 		{
 			SigArray[3] = true;
-			SigLagPosition[1] = std::find(std::make_reverse_iterator(LagEnd - 1), std::make_reverse_iterator(LagBeg + 1), 1);
+			SigLagPosition[1] = std::find(std::make_reverse_iterator(LagEnd), std::make_reverse_iterator(LagBeg + 1), 1);
 		}
 
 

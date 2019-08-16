@@ -6,8 +6,21 @@
 
 #include "Statistician.h"
 #include <numeric>
+#include <iterator>
 int main()
 {
+
+
+	std::vector<int> asd{ 1,2,3,4,5,6,7,8,9 };
+
+	auto rrrrb= asd.rbegin();
+	auto mmm = std::make_reverse_iterator(asd.begin());
+	auto enddd= asd.begin();
+	auto p1 = *rrrrb;
+	auto p2 = *mmm;
+	auto p3 = *enddd;
+	auto ggg = std::distance(rrrrb, mmm);
+
 	//This is not professional code. to my taste, the classes are well designed maybe the thread pool or MasterCorr on Statistician
 	//needs more work because a have a ton of code in one method but its acceptable.
 	//The part that is really bad is the user input, first to input different parameters you need to edit this code, you dont have IO.

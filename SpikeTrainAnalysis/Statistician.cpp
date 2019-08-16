@@ -226,26 +226,49 @@ void Statistician::SpikeTrainJitter(const std::vector<double>& reference, const 
 	//A current limitation is that I am working with time and not with samples. Time can be tricky due to the finite length of the decimal places of the double data type.
 	//I need to try this again using samples instead of time stamps, to do that I need to edit some code on MATLAB.
 
-	std::uniform_real_distribution<double> distribution(-0.003, 0.003);
+	std::uniform_real_distribution<double> distribution(-0.005, 0.005);
 	//std::normal_distribution<double> distribution(0,0.001);
+	
 	std::vector<double> JitteredTarget(target.size());
-
 	//std::ofstream DistFile("Dist.txt");
 
 	for (auto Spikes = SpikesMatrix.begin(), SMEnd = SpikesMatrix.end(); Spikes < SMEnd; ++Spikes)
 	{
-		//Computes Correlations separated by bins;
-
-		//std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+		//Computes Correlations separated by bins
 
 		std::transform(target.cbegin(), target.cend(), JitteredTarget.begin(), //Jittering here!
 			[this, &distribution](const double& Spike) { return Spike + distribution(Generator); });
 
 		SpikeTrainCorr(reference, JitteredTarget, *Spikes,Count);
+	}
 
-		//std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-		//std::chrono::duration<float> duration = end - start;
-		//std::cout << duration.count() << "\n";
+}
+
+void Statistician::SpikeTrainJitterCopy(const std::vector<double>& reference, std::vector<double> target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count)
+{
+
+	//This is bad because it is just copy pasta from the SpikeTrainCorr func and adding just a single Line for Jittering short intervals, but Im lazy to change the arquitecture.
+	//I think that passing a bool to SpikeTrainCorr would just make the code messier.
+
+
+	//Setting Pseudo Random Number Uniform Distribution for jittering [-5ms, 5ms] (Fujisawa, 2018)
+	//Fujisawa window is not useful for me, I chose a smalles time window [-2ms, 2ms].
+	//A current limitation is that I am working with time and not with samples. Time can be tricky due to the finite length of the decimal places of the double data type.
+	//I need to try this again using samples instead of time stamps, to do that I need to edit some code on MATLAB.
+
+	std::uniform_real_distribution<double> distribution(-0.005, 0.005);
+	//std::normal_distribution<double> distribution(0,0.001);
+
+	//std::ofstream DistFile("Dist.txt");
+
+	for (auto Spikes = SpikesMatrix.begin(), SMEnd = SpikesMatrix.end(); Spikes < SMEnd; ++Spikes)
+	{
+		//Computes Correlations separated by bins
+
+		std::for_each(target.begin(), target.end(),
+			[this, &distribution](double& Spike) { Spike += distribution(Generator); });
+
+		SpikeTrainCorr(reference, target, *Spikes, Count);
 	}
 
 }
@@ -386,6 +409,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 				; ++TarTrain, TargetUnit++)
 			{
 				if (TargetUnit == 49)
+				//if(ReferenceUnit != TargetUnit)
 				{
 					auto RefTrialTrain = RefTrain; //this is the downside of the way I parse the matlab data.
 					auto TarTrialTrain = TarTrain; //Aux vars to prevent modification of original vars.
@@ -407,7 +431,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 								break;
 
 							case JITTERING:
-								SpikeTrainJitter(*RefTrialTrain, *TarTrialTrain, SpikesCountResampled, CountRes); //Compute Corr Jittering method.
+								SpikeTrainJitterCopy(*RefTrialTrain, *TarTrialTrain, SpikesCountResampled, CountRes); //Compute Corr Jittering method.
 								break;
 
 							default:
@@ -530,56 +554,6 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 
 						mu.lock();
 						
-						if (SigArray[0] && SigArray[1])
-						{
-							//Code to store in txt files.
-							CorrFile << 1 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
-							WriteToFileWorkerT(CorrFile, SpikesCountCorr);
-							WriteToFileWorkerT(CorrFile, LPWBand);
-							WriteToFileWorkerT(CorrFile, UPWBand);
-							CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << GoodAlpha << ", " << "\n";
-						}
-						else if (SigArray[0])
-						{
-							CorrFile << 2 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
-							WriteToFileWorkerT(CorrFile, SpikesCountCorr);
-							WriteToFileWorkerT(CorrFile, LPWBand);
-							WriteToFileWorkerT(CorrFile, UPWBand);
-							CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << GoodAlpha << ", " << "\n";
-						}
-						else if (SigArray[1])
-						{
-							CorrFile << 3 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
-							WriteToFileWorkerT(CorrFile, SpikesCountCorr);
-							WriteToFileWorkerT(CorrFile, LPWBand);
-							WriteToFileWorkerT(CorrFile, UPWBand);
-							CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << GoodAlpha << ", " << "\n";
-						}
-
-						if (SigArray[2] && SigArray[3])
-						{
-							CorrFile << 4 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
-							WriteToFileWorkerT(CorrFile, SpikesCountCorr);
-							WriteToFileWorkerT(CorrFile, LPWBand);
-							WriteToFileWorkerT(CorrFile, UPWBand);
-							CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << GoodAlpha << ", " << "\n";
-						}
-						else if (SigArray[2])
-						{
-							CorrFile << 5 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
-							WriteToFileWorkerT(CorrFile, SpikesCountCorr);
-							WriteToFileWorkerT(CorrFile, LPWBand);
-							WriteToFileWorkerT(CorrFile, UPWBand);
-							CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << GoodAlpha << ", " << "\n";
-						}
-						else if (SigArray[3])
-						{
-							CorrFile << 6 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
-							WriteToFileWorkerT(CorrFile, SpikesCountCorr);
-							WriteToFileWorkerT(CorrFile, LPWBand);
-							WriteToFileWorkerT(CorrFile, UPWBand);
-							CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << GoodAlpha << ", " << "\n";
-						}
 						if ((SigArray[2] || SigArray[3]) && (SigArray[0] || SigArray[1]))
 						{
 							CorrFile << 7 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
@@ -587,6 +561,59 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 							WriteToFileWorkerT(CorrFile, LPWBand);
 							WriteToFileWorkerT(CorrFile, UPWBand);
 							CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << GoodAlpha << ", " << "\n";
+						}
+						else
+						{
+							if (SigArray[0] && SigArray[1])
+							{
+								//Code to store in txt files.
+								CorrFile << 1 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
+								WriteToFileWorkerT(CorrFile, SpikesCountCorr);
+								WriteToFileWorkerT(CorrFile, LPWBand);
+								WriteToFileWorkerT(CorrFile, UPWBand);
+								CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << GoodAlpha << ", " << "\n";
+							}
+							else if (SigArray[0])
+							{
+								CorrFile << 2 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
+								WriteToFileWorkerT(CorrFile, SpikesCountCorr);
+								WriteToFileWorkerT(CorrFile, LPWBand);
+								WriteToFileWorkerT(CorrFile, UPWBand);
+								CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << GoodAlpha << ", " << "\n";
+							}
+							else if (SigArray[1])
+							{
+								CorrFile << 3 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
+								WriteToFileWorkerT(CorrFile, SpikesCountCorr);
+								WriteToFileWorkerT(CorrFile, LPWBand);
+								WriteToFileWorkerT(CorrFile, UPWBand);
+								CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << GoodAlpha << ", " << "\n";
+							}
+
+							if (SigArray[2] && SigArray[3])
+							{
+								CorrFile << 4 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
+								WriteToFileWorkerT(CorrFile, SpikesCountCorr);
+								WriteToFileWorkerT(CorrFile, LPWBand);
+								WriteToFileWorkerT(CorrFile, UPWBand);
+								CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << GoodAlpha << ", " << "\n";
+							}
+							else if (SigArray[2])
+							{
+								CorrFile << 5 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
+								WriteToFileWorkerT(CorrFile, SpikesCountCorr);
+								WriteToFileWorkerT(CorrFile, LPWBand);
+								WriteToFileWorkerT(CorrFile, UPWBand);
+								CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << GoodAlpha << ", " << "\n";
+							}
+							else if (SigArray[3])
+							{
+								CorrFile << 6 << ", " << ReferenceUnit << ", " << TargetUnit << ", ";
+								WriteToFileWorkerT(CorrFile, SpikesCountCorr);
+								WriteToFileWorkerT(CorrFile, LPWBand);
+								WriteToFileWorkerT(CorrFile, UPWBand);
+								CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << GoodAlpha << ", " << "\n";
+							}
 						}
 						mu.unlock();
 					}
