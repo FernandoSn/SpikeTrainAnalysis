@@ -149,8 +149,8 @@ void Statistician::SpikeTrainCorr(const std::vector<uint32_t>& reference, const 
 {
 	//Computes Correlations separated by bins;
 
-	uint32_t CurrentBinF;
-	uint32_t CurrentBinL;
+	long long CurrentBinF;
+	long long CurrentBinL;
 	auto LBit = target.begin();
 	auto UBit = target.begin();
 
@@ -158,12 +158,12 @@ void Statistician::SpikeTrainCorr(const std::vector<uint32_t>& reference, const 
     //for(auto Spike = reference.begin(), LastSpike = reference.end(); Spike < LastSpike; ++Spike)
 	for (const uint32_t& Spike : reference)
 	{
-		CurrentBinF = Spike - Epoch; // Set the current bins for the lambda function.
+		CurrentBinF = (long long)Spike - Epoch; // Set the current bins for the lambda function.
 		CurrentBinL = CurrentBinF + BinSize;
 
 		//Boundaries of the target spikes.
 
-		STALowerBoundT(LBit, target.end(), Spike - Epoch);
+		STALowerBoundT(LBit, target.end(), CurrentBinF);
 		STAUpperBoundT(UBit, target.end(), Spike + Epoch);
 
 		auto First = LBit;
@@ -406,8 +406,8 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 				TarTrain < endTT
 				; ++TarTrain, TargetUnit++)
 			{
-				//if (TargetUnit == 49)
-				if(ReferenceUnit != TargetUnit)
+				if (TargetUnit == 49)
+				//if(ReferenceUnit != TargetUnit)
 				{
 					auto RefTrialTrain = RefTrain; //this is the downside of the way I parse the matlab data.
 					auto TarTrialTrain = TarTrain; //Aux vars to prevent modification of original vars.
@@ -421,7 +421,6 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 						if ((RefTrialTrain->size() != 0 && TarTrialTrain->size() != 0)) //Check if trains are not empty.
 						{
 							SpikeTrainCorr(*RefTrialTrain, *TarTrialTrain, SpikesCountCorr, CountCorr); //Compute Corr.
-
 							switch (ResamplingMethod)
 							{
 							case SHUFFLING:
