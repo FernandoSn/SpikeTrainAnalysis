@@ -21,16 +21,16 @@ BrainRegion::BrainRegion(std::ifstream* DataFile, unsigned short UnitNumber, int
 
 	for (auto i = Units.begin(), end = Units.end(); i<end; ++i)
 	{
-		DataFile->read(reinterpret_cast<char*>(i->data()), (long long)i->size() * 8L);
+		DataFile->read(reinterpret_cast<char*>(i->data()), (long long)i->size() * 4);
 	}
 }
 
-std::vector<std::vector<double>>& BrainRegion::RUnits()
+std::vector<std::vector<uint32_t>>& BrainRegion::RUnits()
 {
 	return Units;
 }
 
-std::vector<std::vector<double>> BrainRegion::UnitsCopy()
+std::vector<std::vector<uint32_t>> BrainRegion::UnitsCopy()
 {
 	return Units;
 }

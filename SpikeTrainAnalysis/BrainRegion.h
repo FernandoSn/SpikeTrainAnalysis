@@ -8,13 +8,13 @@ class BrainRegion
 public:
 
 	BrainRegion(std::ifstream* DataFile, unsigned short UnitNumber, int SizePos, int TrainPos);
-	std::vector<std::vector<double>>& RUnits();
-	std::vector<std::vector<double>> UnitsCopy();
+	std::vector<std::vector<uint32_t>>& RUnits();
+	std::vector<std::vector<uint32_t>> UnitsCopy();
 
 private:
 
 	
 private:
 
-	std::vector<std::vector<double>> Units;
+	std::vector<std::vector<uint32_t>> Units;
 };

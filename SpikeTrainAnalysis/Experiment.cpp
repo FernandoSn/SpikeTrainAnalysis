@@ -183,12 +183,12 @@ void Experiment::SetExpDataVectors(bool IsSpontaneous)
 	if (!IsSpontaneous)
 	{
 		DataFile.seekg(TimesOnPos, DataFile.beg);
-		DataFile.read(reinterpret_cast<char*>(StimOn.data()), (long long)StimOn.size() * 4L);
+		DataFile.read(reinterpret_cast<char*>(StimOn.data()), (long long)StimOn.size() * 4);
 
 		DataFile.seekg(TimesOffPos, DataFile.beg);
-		DataFile.read(reinterpret_cast<char*>(StimOff.data()), (long long)StimOff.size() * 4L);
+		DataFile.read(reinterpret_cast<char*>(StimOff.data()), (long long)StimOff.size() * 4);
 
 		DataFile.seekg(PREXTimesPos, DataFile.beg);
-		DataFile.read(reinterpret_cast<char*>(PREXTimes.data()), (long long)PREXTimes.size() * 4L);
+		DataFile.read(reinterpret_cast<char*>(PREXTimes.data()), (long long)PREXTimes.size() * 4);
 	}
 }
