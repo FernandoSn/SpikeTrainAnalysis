@@ -25,9 +25,9 @@ public:
 	int GetPREXTimesPos();
 
 	std::ifstream* RDataFile();
-	std::vector<double>& GetStimOn();
-	std::vector<double>& GetStimOff();
-	std::vector<double>& GetPREXTimes();
+	std::vector<uint32_t>& GetStimOn();
+	std::vector<uint32_t>& GetStimOff();
+	std::vector<uint32_t>& GetPREXTimes();
 
 private:
 
@@ -53,8 +53,8 @@ private:
 	int TimesOffPos;
 	int PREXTimesPos;
 
-	std::vector<double> StimOn;
-	std::vector<double> StimOff;
-	std::vector<double> PREXTimes;
+	std::vector<uint32_t> StimOn;
+	std::vector<uint32_t> StimOff;
+	std::vector<uint32_t> PREXTimes;
 
 };

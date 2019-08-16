@@ -99,17 +99,17 @@ std::ifstream* Experiment::RDataFile()
 	return &DataFile;
 }
 
-std::vector<double>& Experiment::GetStimOn()
+std::vector<uint32_t>& Experiment::GetStimOn()
 {
 	return StimOn;
 }
 
-std::vector<double>& Experiment::GetStimOff()
+std::vector<uint32_t>& Experiment::GetStimOff()
 {
 	return StimOff;
 }
 
-std::vector<double>& Experiment::GetPREXTimes()
+std::vector<uint32_t>& Experiment::GetPREXTimes()
 {
 	return PREXTimes;
 }
@@ -150,7 +150,7 @@ void Experiment::SetNumericalParams(bool IsSpontaneous)
 	for (int i = 0; i < UnitsRef; i++)
 	{
 		DataFile.read(TempPtr, 4);
-		TarTrainPos += TempData * 8; //8 because we are reading 8 byte doubles now.
+		TarTrainPos += TempData * 4; //8 because we are reading 8 byte doubles now.
 	}
 
 	if (IsSpontaneous)
@@ -165,12 +165,12 @@ void Experiment::SetNumericalParams(bool IsSpontaneous)
 		for (int i = 0; i < UnitsTar; i++)
 		{
 			DataFile.read(TempPtr, 4);
-			TimesOnPos += TempData * 8; //8 because we are reading 8 byte doubles now.
+			TimesOnPos += TempData * 4; //8 because we are reading 8 byte doubles now.
 		}
 
-		TimesOffPos = TimesOnPos + Stimuli * Magnitudes * Trials * 8;
+		TimesOffPos = TimesOnPos + Stimuli * Magnitudes * Trials * 4;
 
-		PREXTimesPos = TimesOffPos + Stimuli * Magnitudes * Trials * 8;
+		PREXTimesPos = TimesOffPos + Stimuli * Magnitudes * Trials * 4;
 	}
 }
 
@@ -183,12 +183,12 @@ void Experiment::SetExpDataVectors(bool IsSpontaneous)
 	if (!IsSpontaneous)
 	{
 		DataFile.seekg(TimesOnPos, DataFile.beg);
-		DataFile.read(reinterpret_cast<char*>(StimOn.data()), (long long)StimOn.size() * 8L);
+		DataFile.read(reinterpret_cast<char*>(StimOn.data()), (long long)StimOn.size() * 4L);
 
 		DataFile.seekg(TimesOffPos, DataFile.beg);
-		DataFile.read(reinterpret_cast<char*>(StimOff.data()), (long long)StimOff.size() * 8L);
+		DataFile.read(reinterpret_cast<char*>(StimOff.data()), (long long)StimOff.size() * 4L);
 
 		DataFile.seekg(PREXTimesPos, DataFile.beg);
-		DataFile.read(reinterpret_cast<char*>(PREXTimes.data()), (long long)PREXTimes.size() * 8L);
+		DataFile.read(reinterpret_cast<char*>(PREXTimes.data()), (long long)PREXTimes.size() * 4L);
 	}
 }
