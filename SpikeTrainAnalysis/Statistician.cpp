@@ -226,7 +226,7 @@ void Statistician::SpikeTrainJitter(const std::vector<double>& reference, const 
 	//A current limitation is that I am working with time and not with samples. Time can be tricky due to the finite length of the decimal places of the double data type.
 	//I need to try this again using samples instead of time stamps, to do that I need to edit some code on MATLAB.
 
-	std::uniform_real_distribution<double> distribution(-0.005, 0.005);
+	std::uniform_real_distribution<double> distribution(-0.003, 0.003);
 	//std::normal_distribution<double> distribution(0,0.001);
 	std::vector<double> JitteredTarget(target.size());
 
@@ -385,7 +385,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 				TarTrain < endTT
 				; ++TarTrain, TargetUnit++)
 			{
-				//if (TargetUnit == 49)
+				if (TargetUnit == 49)
 				{
 					auto RefTrialTrain = RefTrain; //this is the downside of the way I parse the matlab data.
 					auto TarTrialTrain = TarTrain; //Aux vars to prevent modification of original vars.

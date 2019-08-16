@@ -5,6 +5,7 @@
 #include <random>
 #include <atomic>
 #include <mutex>
+#include <iterator>
 
 class Statistician
 {
@@ -65,7 +66,8 @@ private:
 		auto LeadEnd = CountSigVec.end();
 		auto LagBeg = CountSigVec.begin();
 		auto LagEnd = LeadBeg;
-
+		std::vector<bool>::iterator SigLeadPosition[2];
+		std::reverse_iterator<std::vector<bool>::iterator> SigLagPosition[2];
 
 		//Excitatory Correlations
 
@@ -77,10 +79,16 @@ private:
 		int LagCount = std::accumulate(LagBeg, LagEnd, 0);
 
 		if ((LeadCount == 1 || LeadCount == 2) && ((LeadCount - *LeadBeg - *(LeadEnd - 1)) > 0))
+		{
 			SigArray[0] = true;
+			SigLeadPosition[0] = std::find(LeadBeg, LeadEnd, 1);
+		}
 
 		if ((LagCount == 1 || LagCount == 2) && ((LagCount - *LagBeg - *(LagEnd - 1)) > 0))
+		{
 			SigArray[1] = true;
+			SigLagPosition[0] = std::find(std::make_reverse_iterator(LagEnd - 1), std::make_reverse_iterator(LagBeg + 1), 1);
+		}
 
 		//Inhibitory Correlations
 
@@ -92,33 +100,43 @@ private:
 		LagCount = std::accumulate(LagBeg, LagEnd, 0);
 
 		if ((LeadCount == 1 || LeadCount == 2) && ((LeadCount - *LeadBeg - *(LeadEnd - 1)) > 0))
+		{
 			SigArray[2] = true;
+			SigLeadPosition[1] = std::find(LeadBeg, LeadEnd, 1);
+		}
 
 		if ((LagCount == 1 || LagCount == 2) && ((LagCount - *LagBeg - *(LagEnd - 1)) > 0))
+		{
 			SigArray[3] = true;
+			SigLagPosition[1] = std::find(std::make_reverse_iterator(LagEnd - 1), std::make_reverse_iterator(LagBeg + 1), 1);
+		}
 
-		/*auto LeadExC = std::count_if(CountVec.end() - (CountVec.size() / 2), CountVec.end(),
-			[&GlobalBands](T& RawVal)
-			{
-				return RawVal > GlobalBands.second;
-			});
 
-		auto LagExC = std::count_if(CountVec.begin(), CountVec.begin() + (CountVec.size() / 2),
-			[&GlobalBands](T& RawVal)
+		//Verify that Lead Excitatory Correlation and Lead Inhibitory Correlation exists.
+		if (SigArray[2] && SigArray[0])
+		{
+			if (SigLeadPosition[0] < SigLeadPosition[1])
 			{
-				return RawVal > GlobalBands.second;
-			});
+				SigArray[2] = false;
+			}
+			else
+			{
+				SigArray[0] = false;
+			}
+		}
 
-		auto LeadInC = std::count_if(CountVec.end() - (CountVec.size() / 2), CountVec.end(),
-			[&GlobalBands](T& RawVal)
+		if (SigArray[3] && SigArray[1])
+		{
+			if (SigLagPosition[0] < SigLagPosition[1])
 			{
-				return RawVal < GlobalBands.first;
-			});
-		auto LagInC = std::count_if(CountVec.begin(), CountVec.begin() + (CountVec.size() / 2),
-			[&GlobalBands](T& RawVal)
+				SigArray[3] = false;
+			}
+			else
 			{
-				return RawVal < GlobalBands.first;
-			});*/
+				SigArray[1] = false;
+			}
+		}
+
 
 	}
 
