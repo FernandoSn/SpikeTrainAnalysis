@@ -22,7 +22,7 @@ int main()
 	bool MultiThreading = false; 
 	bool PREX = false; //Use first respiration, if its false its gonna use the Stimulus on and off.
 	std::string FileName("PfCxOdorInt.dat"); //Name of the File that was created with Matlab code.
-	int BinSize = 30; //Samples.
+	int BinSize = 30; //Samples.1 ms binsize. 1 ms = 30 samples.
 	int Epoch = 150; //Samples. Epoch for the analysis. 150 samples = 5ms
 	uint32_t Interval = 30000; //Seconds. Interval used for statician ctor with PREX enabled.
 	uint8_t ResamplingMethod = INTERJITTER; //Select the resampling Method.

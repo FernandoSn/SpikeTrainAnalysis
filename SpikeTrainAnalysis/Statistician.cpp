@@ -403,6 +403,41 @@ void Statistician::SpikeTrainIntervalJitter2(std::vector<unsigned int>& Spikes, 
 
 }
 
+void Statistician::SpikeTrainIntervalJitter3(std::vector<unsigned int>& Spikes, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count)
+{
+
+	uint32_t LagCount = std::accumulate(Spikes.begin(), Spikes.begin() + NoBins / 2, 0);
+	uint32_t LeadCount = std::accumulate(Spikes.begin() + NoBins / 2, Spikes.end(), 0);
+
+	//Fake RefSample is any element of the set {x:x>Epoch};
+	uint32_t FakeRefSample = 1000;
+	std::vector<uint32_t> FakeReference(1, FakeRefSample);
+	std::vector<uint32_t> FakeTarget((long long)LagCount + (long long)LeadCount);
+
+	std::uniform_int_distribution<uint32_t> LagDist(FakeRefSample - Epoch, FakeRefSample - 1);
+	std::uniform_int_distribution<uint32_t> LeadDist(FakeRefSample + 1, FakeRefSample + Epoch);
+
+
+
+	for (auto JittVec = SpikesMatrix.begin(), SMEnd = SpikesMatrix.end(); JittVec < SMEnd; ++JittVec)
+	{
+		auto FTIt = FakeTarget.begin();
+
+		for (auto FTLagEnd = FakeTarget.begin() + LagCount; FTIt < FTLagEnd; ++FTIt)
+		{
+			*FTIt = LagDist(Generator);
+			//std::cout << *FTIt << "\n";
+		}
+
+		for (auto FTLeadEnd = FakeTarget.end(); FTIt < FTLeadEnd; ++FTIt)
+		{
+			*FTIt = LeadDist(Generator);
+		}
+		std::sort(FakeTarget.begin(), FakeTarget.end());
+		SpikeTrainCorr(FakeReference, FakeTarget, *JittVec, Count);
+	}
+}
+
 void Statistician::SpikeTrainBasicJitter(const std::vector<uint32_t>& reference, const std::vector<uint32_t>& target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count)
 {
 	//Basic jitter or Center jitter. this is just a heuristic, doesnt work to test the actual null hypothesis.
@@ -630,9 +665,9 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 
 							case INTERJITTER:
 								SpikeTrainCorr(*RefTrialTrain, *TarTrialTrain, SpikesCountCorr, CountCorr);
-								SpikeTrainIntervalJitter2(SpikesCountCorr, SpikesCountResampled);
+								SpikeTrainIntervalJitter3(SpikesCountCorr, SpikesCountResampled,CountRes);
 								//SpikeTrainIntervalJitter(*RefTrialTrain, *TarTrialTrain, SpikesCountCorr, SpikesCountResampled, CountCorr);
-								WriteToFileWorkerT(CorrFile, SpikesCountCorr); CorrFile << "\n";
+								//WriteToFileWorkerT(CorrFile, SpikesCountCorr); CorrFile << "\n";
 
 								break;
 

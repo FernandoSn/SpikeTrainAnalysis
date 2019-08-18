@@ -23,6 +23,7 @@ private:
 	void SpikeTrainCorr(const std::vector<uint32_t>& reference, const std::vector<uint32_t>& target, std::vector<unsigned int>& Spikes, unsigned int& Count);
 	void SpikeTrainIntervalJitter(const std::vector<uint32_t>& reference, const std::vector<uint32_t>& target, std::vector<unsigned int>& Spikes, std::vector<std::vector<unsigned int>>& SpikesMatrix,unsigned int& Count);
 	void SpikeTrainIntervalJitter2(std::vector<unsigned int>& Spikes, std::vector<std::vector<unsigned int>>& SpikesMatrix);
+	void SpikeTrainIntervalJitter3(std::vector<unsigned int>& Spikes, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count);
 	void SpikeTrainBasicJitter(const std::vector<uint32_t>& reference, const std::vector<uint32_t>& target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count);
 	void SpikeTrainBasicCuJitter(const std::vector<uint32_t>& reference, std::vector<uint32_t> target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count);
 	void SpikeTrainShuffle(const std::vector<uint32_t>& reference, std::vector<uint32_t> target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count);
