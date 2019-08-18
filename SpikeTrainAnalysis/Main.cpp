@@ -25,7 +25,7 @@ int main()
 	int BinSize = 30; //Samples.
 	int Epoch = 150; //Samples. Epoch for the analysis. 150 samples = 5ms
 	uint32_t Interval = 30000; //Seconds. Interval used for statician ctor with PREX enabled.
-	uint8_t ResamplingMethod = JITTERING; //Select the resampling Method.
+	uint8_t ResamplingMethod = INTERJITTER; //Select the resampling Method.
 	uint8_t StatTest = PERMUTATIONTEST; //Select the Statistics. If PERMUTATIONTEST, ExcZeroLag is ignored.
 	int ResampledSets = 1000; //Recommended 100 for shuffle (Burgos-Robles,2017), 1000 for jittering (Fujisawa,2008)
 	double ZThreshorPVal = 0.01; //You should calculate this threshold with a two tail Z table. Divide 0.01 / NoBins and then look for the corresponding Z value.

@@ -210,18 +210,123 @@ void Statistician::SpikeTrainCorr(const std::vector<uint32_t>& reference, const 
 	Count += (unsigned int)reference.size();
 }
 
-void Statistician::SpikeTrainJitter(const std::vector<uint32_t>& reference, const std::vector<uint32_t>& target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count)
+void Statistician::SpikeTrainIntervalJitter(const std::vector<uint32_t>& reference, const std::vector<uint32_t>& target, std::vector<unsigned int>& Spikes, std::vector<std::vector<unsigned int>>& SpikesMatrix,unsigned int& Count)
 {
+	//Computes Correlations separated by bins;
 
-	//This is bad because it is just copy pasta from the SpikeTrainCorr func and adding just a single Line for Jittering short intervals, but Im lazy to change the arquitecture.
-	//I think that passing a bool to SpikeTrainCorr would just make the code messier.
+	long long CurrentBinF;
+	long long CurrentBinL;
+	auto LBit = target.begin();
+	auto UBit = target.begin();
 
+	int HelperSize = NoBins / 2 + 1;
+
+	std::vector<uint32_t> HelperLag(HelperSize);
+	std::vector<uint32_t> HelperLead(HelperSize);
+
+	//std::cout << "Shuff: " << "\n";
+	//for(auto Spike = reference.begin(), LastSpike = reference.end(); Spike < LastSpike; ++Spike)
+	for (const uint32_t& Spike : reference)
+	{
+		CurrentBinF = (long long)Spike - Epoch; // Set the current bins for the lambda function.
+		CurrentBinL = CurrentBinF + BinSize;
+
+		//Boundaries of the target spikes.
+
+		STALowerBoundT(LBit, target.end(), CurrentBinF);
+		STAUpperBoundT(UBit, target.end(), Spike + Epoch);
+
+		auto First = LBit;
+		auto Last = LBit;
+		STAUpperBoundTExc(Last, UBit, CurrentBinL);
+
+		//Ierators for Count Corr vec
+		auto Bin = Spikes.begin(), LastBin = Spikes.end();
+
+
+
+		/////This loops are written this way to avoid counting zero lag correlations. They are implemented using pointer
+		// aritmethic with custom made functions. STA stands for Spike Train Analysis.
+
+		for (; Bin < LastBin - (NoBins / 2) - 1; ++Bin)
+		{
+			*Bin += (unsigned int)std::distance(First, Last);
+			CurrentBinF = CurrentBinL;
+			CurrentBinL = CurrentBinF + BinSize;
+
+			First = Last;
+			STAUpperBoundTExc(Last, UBit, CurrentBinL);
+		}
+
+		*Bin += (unsigned int)std::distance(First, Last);
+		CurrentBinF = CurrentBinL;
+		CurrentBinL = CurrentBinF + BinSize;
+
+		STALowerBoundTExc(First, UBit, CurrentBinF);
+		STAUpperBoundT(Last, UBit, CurrentBinL);
+
+		++Bin;
+
+		for (; Bin < LastBin; ++Bin)
+		{
+			*Bin += (unsigned int)std::distance(First, Last);
+			CurrentBinF = CurrentBinL;
+			CurrentBinL = CurrentBinF + BinSize;
+
+			First = Last;
+			STAUpperBoundT(Last, UBit, CurrentBinL);
+		}
+
+		uint32_t LagCount = std::accumulate(Spikes.begin(), Spikes.begin() + (NoBins/2),0);
+		uint32_t LeadCount = std::accumulate(Spikes.begin() + (NoBins / 2), LastBin, 0);
+
+		std::uniform_int_distribution<uint32_t> LagDist(0, LagCount);
+		std::uniform_int_distribution<uint32_t> LeadDist(0, LeadCount);
+		*(HelperLag.end() - 1) = LagCount;
+		*(HelperLead.end() - 1) = LeadCount;
+
+
+		for (auto JittVec = SpikesMatrix.begin(), SMEnd = SpikesMatrix.end(); JittVec < SMEnd; ++JittVec)
+		{
+
+			for (auto LagIt = HelperLag.begin() + 1, End = HelperLag.end() - 1 ; LagIt < End; ++LagIt)
+			{
+				*LagIt = LagDist(Generator);
+			}
+
+			for (auto LeadIt = HelperLead.begin() + 1, End = HelperLead.end() - 1; LeadIt < End; ++LeadIt)
+			{
+				*LeadIt = LeadDist(Generator);
+			}
+
+			std::sort(HelperLag.begin(), HelperLag.end());
+			std::sort(HelperLead.begin(), HelperLead.end());
+
+			auto LagIt = HelperLag.begin() + 1;
+			auto LeadIt = HelperLead.begin() + 1;
+
+			for (auto JittLagIt = JittVec->begin(), EndLag = JittVec->begin() + (NoBins / 2); JittLagIt < EndLag; ++JittLagIt)
+			{
+				*JittLagIt += *LagIt - *(LagIt - 1);
+			}
+
+			for (auto JittLeadIt = JittVec->begin() + (NoBins / 2), EndLead = JittVec->end(); JittLeadIt < EndLead; ++JittLeadIt)
+			{
+				*JittLeadIt += *LeadIt - *(LeadIt - 1);
+			}
+		}
+	}
+	Count += (unsigned int)reference.size();
+}
+
+void Statistician::SpikeTrainBasicJitter(const std::vector<uint32_t>& reference, const std::vector<uint32_t>& target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count)
+{
+	//Basic jitter or Center jitter. this is just a heuristic, doesnt work to test the actual null hypothesis.
+	//Do not use for statistics. (Amarasingham, 2011)
 
 	//Setting Pseudo Random Number Uniform Distribution for jittering [-5ms, 5ms] (Fujisawa, 2018)
 	//Fujisawa window is not useful for me, I chose a smalles time window [-2ms, 2ms].
-	//A current limitation is that I am working with time and not with samples. Time can be tricky due to the finite length of the decimal places of the double data type.
-	//I need to try this again using samples instead of time stamps, to do that I need to edit some code on MATLAB.
-
+	
 	//150 samples correspond to 5ms at 30000 kHz.
 	std::uniform_int_distribution<int> distribution(-150, 150);
 	//std::normal_distribution<double> distribution(0,0.001);
@@ -245,18 +350,16 @@ void Statistician::SpikeTrainJitter(const std::vector<uint32_t>& reference, cons
 
 }
 
-void Statistician::SpikeTrainJitterCopy(const std::vector<uint32_t>& reference, std::vector<uint32_t> target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count)
+void Statistician::SpikeTrainBasicCuJitter(const std::vector<uint32_t>& reference, std::vector<uint32_t> target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count)
 {
-
-	//This is bad because it is just copy pasta from the SpikeTrainCorr func and adding just a single Line for Jittering short intervals, but Im lazy to change the arquitecture.
-	//I think that passing a bool to SpikeTrainCorr would just make the code messier.
-
+	//Basic cumulative jitter or Center cumulative jitter. this is just a heuristic, doesnt work to test the actual null hypothesis.
+	//Do not use for statistics.
+	//Takes cumultive sums of random spike places.
+	
 
 	//Setting Pseudo Random Number Uniform Distribution for jittering [-5ms, 5ms] (Fujisawa, 2018)
 	//Fujisawa window is not useful for me, I chose a smalles time window [-2ms, 2ms].
-	//A current limitation is that I am working with time and not with samples. Time can be tricky due to the finite length of the decimal places of the double data type.
-	//I need to try this again using samples instead of time stamps, to do that I need to edit some code on MATLAB.
-
+	
 	//150 samples correspond to 5ms at 30000 kHz.
 	std::uniform_int_distribution<int> distribution(-150, 150);
 	//std::normal_distribution<double> distribution(0,0.001);
@@ -429,18 +532,24 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 					{
 						if ((RefTrialTrain->size() != 0 && TarTrialTrain->size() != 0)) //Check if trains are not empty.
 						{
-							SpikeTrainCorr(*RefTrialTrain, *TarTrialTrain, SpikesCountCorr, CountCorr); //Compute Corr.
 							switch (ResamplingMethod)
 							{
 							case SHUFFLING:
+								SpikeTrainCorr(*RefTrialTrain, *TarTrialTrain, SpikesCountCorr, CountCorr); //Compute Corr.
 								SpikeTrainShuffle(*RefTrialTrain, *TarTrialTrain, SpikesCountResampled, CountRes); //Compute Corr shuffling method.
 								break;
 
-							case JITTERING:
-								SpikeTrainJitterCopy(*RefTrialTrain, *TarTrialTrain, SpikesCountResampled, CountRes); //Compute Corr Jittering method.
+							case BASICJITTER:
+								SpikeTrainCorr(*RefTrialTrain, *TarTrialTrain, SpikesCountCorr, CountCorr);
+								SpikeTrainBasicJitter(*RefTrialTrain, *TarTrialTrain, SpikesCountResampled, CountRes); //Compute Basic Jittering method.
+								break;
+
+							case INTERJITTER:
+								SpikeTrainIntervalJitter(*RefTrialTrain, *TarTrialTrain, SpikesCountCorr, SpikesCountResampled, CountCorr);
 								break;
 
 							default:
+								SpikeTrainCorr(*RefTrialTrain, *TarTrialTrain, SpikesCountCorr, CountCorr);
 								SpikeTrainShuffle(*RefTrialTrain, *TarTrialTrain, SpikesCountResampled, CountRes);
 								break;
 							}

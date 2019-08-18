@@ -21,8 +21,9 @@ private:
 	void SetStimLockedSpikes();
 	void SetPREXLockedSpikes(uint32_t Interval);
 	void SpikeTrainCorr(const std::vector<uint32_t>& reference, const std::vector<uint32_t>& target, std::vector<unsigned int>& Spikes, unsigned int& Count);
-	void SpikeTrainJitter(const std::vector<uint32_t>& reference, const std::vector<uint32_t>& target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count);
-	void SpikeTrainJitterCopy(const std::vector<uint32_t>& reference, std::vector<uint32_t> target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count);
+	void SpikeTrainIntervalJitter(const std::vector<uint32_t>& reference, const std::vector<uint32_t>& target, std::vector<unsigned int>& Spikes, std::vector<std::vector<unsigned int>>& SpikesMatrix,unsigned int& Count);
+	void SpikeTrainBasicJitter(const std::vector<uint32_t>& reference, const std::vector<uint32_t>& target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count);
+	void SpikeTrainBasicCuJitter(const std::vector<uint32_t>& reference, std::vector<uint32_t> target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count);
 	void SpikeTrainShuffle(const std::vector<uint32_t>& reference, std::vector<uint32_t> target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count);
 	void MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, uint8_t ResamplingMethod, uint8_t StatTest, double ZorPVal, bool ExcZeroLag);
 	
@@ -163,7 +164,8 @@ private:
 };
 
 constexpr unsigned char SHUFFLING = 0;
-constexpr unsigned char JITTERING = 1;
+constexpr unsigned char BASICJITTER = 1;
+constexpr unsigned char INTERJITTER = 2;
 
 constexpr unsigned char ZTEST = 0;
 constexpr unsigned char PERMUTATIONTEST = 1;
