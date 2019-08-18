@@ -212,7 +212,18 @@ void Statistician::SpikeTrainCorr(const std::vector<uint32_t>& reference, const 
 
 void Statistician::SpikeTrainIntervalJitter(const std::vector<uint32_t>& reference, const std::vector<uint32_t>& target, std::vector<unsigned int>& Spikes, std::vector<std::vector<unsigned int>>& SpikesMatrix,unsigned int& Count)
 {
-	//Computes Correlations separated by bins;
+	//To produce a partition of t into k values :
+
+	//	- Generate k - 1 uniformly distributed values in the range[0, t].
+
+	//	- Sort them, and add 0 at the beginning and t at the end.
+
+	//	- Use the adjacent differences as the partition.
+
+
+	//Somehow this is failing. Im getting just a normal distribution when I need a uniform dist.
+	// The normal dist is evident even in MATLAB. when t < k , it tends to be a normal dist.
+	//I need to implement the real test with pseudorandom spike samples not counts but it may be really slow.
 
 	long long CurrentBinF;
 	long long CurrentBinL;
@@ -242,15 +253,20 @@ void Statistician::SpikeTrainIntervalJitter(const std::vector<uint32_t>& referen
 
 		//Ierators for Count Corr vec
 		auto Bin = Spikes.begin(), LastBin = Spikes.end();
-
-
+		auto LagIt = HelperLag.begin() + 1, LeadIt = HelperLead.begin() + 1;
+		const auto LagEnd = HelperLag.end(), LeadEnd = HelperLead.end();
 
 		/////This loops are written this way to avoid counting zero lag correlations. They are implemented using pointer
 		// aritmethic with custom made functions. STA stands for Spike Train Analysis.
 
-		for (; Bin < LastBin - (NoBins / 2) - 1; ++Bin)
+		uint32_t BinCount;
+
+		for (; Bin < LastBin - (NoBins / 2) - 1; ++Bin, ++LagIt)
 		{
-			*Bin += (unsigned int)std::distance(First, Last);
+			BinCount = (uint32_t)std::distance(First, Last);
+			*LagIt = BinCount;
+			*Bin += BinCount;
+
 			CurrentBinF = CurrentBinL;
 			CurrentBinL = CurrentBinF + BinSize;
 
@@ -258,7 +274,9 @@ void Statistician::SpikeTrainIntervalJitter(const std::vector<uint32_t>& referen
 			STAUpperBoundTExc(Last, UBit, CurrentBinL);
 		}
 
-		*Bin += (unsigned int)std::distance(First, Last);
+		BinCount = (uint32_t)std::distance(First, Last);
+		*LagIt = BinCount;
+		*Bin += BinCount;
 		CurrentBinF = CurrentBinL;
 		CurrentBinL = CurrentBinF + BinSize;
 
@@ -267,9 +285,11 @@ void Statistician::SpikeTrainIntervalJitter(const std::vector<uint32_t>& referen
 
 		++Bin;
 
-		for (; Bin < LastBin; ++Bin)
+		for (; Bin < LastBin; ++Bin, ++LeadIt)
 		{
-			*Bin += (unsigned int)std::distance(First, Last);
+			BinCount = (uint32_t)std::distance(First, Last);
+			*LeadIt = BinCount;
+			*Bin += BinCount;
 			CurrentBinF = CurrentBinL;
 			CurrentBinL = CurrentBinF + BinSize;
 
@@ -277,8 +297,11 @@ void Statistician::SpikeTrainIntervalJitter(const std::vector<uint32_t>& referen
 			STAUpperBoundT(Last, UBit, CurrentBinL);
 		}
 
-		uint32_t LagCount = std::accumulate(Spikes.begin(), Spikes.begin() + (NoBins/2),0);
-		uint32_t LeadCount = std::accumulate(Spikes.begin() + (NoBins / 2), LastBin, 0);
+		LagIt = HelperLag.begin() + 1;
+		LeadIt = HelperLead.begin() + 1;
+
+		uint32_t LagCount = std::accumulate(LagIt, LagEnd,0);
+		uint32_t LeadCount = std::accumulate(LeadIt, LeadEnd, 0);
 
 		std::uniform_int_distribution<uint32_t> LagDist(0, LagCount);
 		std::uniform_int_distribution<uint32_t> LeadDist(0, LeadCount);
@@ -289,12 +312,13 @@ void Statistician::SpikeTrainIntervalJitter(const std::vector<uint32_t>& referen
 		for (auto JittVec = SpikesMatrix.begin(), SMEnd = SpikesMatrix.end(); JittVec < SMEnd; ++JittVec)
 		{
 
-			for (auto LagIt = HelperLag.begin() + 1, End = HelperLag.end() - 1 ; LagIt < End; ++LagIt)
+			for (; LagIt < (LagEnd - 1); ++LagIt)
 			{
 				*LagIt = LagDist(Generator);
+				//std::cout << *LagIt << "\n";
 			}
 
-			for (auto LeadIt = HelperLead.begin() + 1, End = HelperLead.end() - 1; LeadIt < End; ++LeadIt)
+			for (; LeadIt < (LeadEnd - 1); ++LeadIt)
 			{
 				*LeadIt = LeadDist(Generator);
 			}
@@ -302,21 +326,81 @@ void Statistician::SpikeTrainIntervalJitter(const std::vector<uint32_t>& referen
 			std::sort(HelperLag.begin(), HelperLag.end());
 			std::sort(HelperLead.begin(), HelperLead.end());
 
-			auto LagIt = HelperLag.begin() + 1;
-			auto LeadIt = HelperLead.begin() + 1;
+			LagIt = HelperLag.begin() + 1;
+			LeadIt = HelperLead.begin() + 1;
 
-			for (auto JittLagIt = JittVec->begin(), EndLag = JittVec->begin() + (NoBins / 2); JittLagIt < EndLag; ++JittLagIt)
+			for (auto JittLagIt = JittVec->begin(), JittLagEnd = JittVec->begin() + (NoBins / 2); JittLagIt < JittLagEnd; ++JittLagIt, ++LagIt)
 			{
 				*JittLagIt += *LagIt - *(LagIt - 1);
 			}
 
-			for (auto JittLeadIt = JittVec->begin() + (NoBins / 2), EndLead = JittVec->end(); JittLeadIt < EndLead; ++JittLeadIt)
+			for (auto JittLeadIt = JittVec->begin() + (NoBins / 2), JittLeadEnd = JittVec->end(); JittLeadIt < JittLeadEnd; ++JittLeadIt, ++LeadIt)
 			{
 				*JittLeadIt += *LeadIt - *(LeadIt - 1);
 			}
+
+			LagIt = HelperLag.begin() + 1;
+			LeadIt = HelperLead.begin() + 1;
 		}
 	}
 	Count += (unsigned int)reference.size();
+}
+
+void Statistician::SpikeTrainIntervalJitter2(std::vector<unsigned int>& Spikes, std::vector<std::vector<unsigned int>>& SpikesMatrix)
+{
+
+	int HelperSize = NoBins / 2 + 1;
+
+	std::vector<uint32_t> HelperLag(HelperSize);
+	std::vector<uint32_t> HelperLead(HelperSize);
+
+	auto LagIt = HelperLag.begin() + 1;
+	auto LeadIt = HelperLead.begin() + 1;
+	auto LagEnd = HelperLag.end();
+	auto LeadEnd = HelperLead.end();
+
+	uint32_t LagCount = std::accumulate(Spikes.begin(), Spikes.begin() + NoBins / 2, 0);
+	uint32_t LeadCount = std::accumulate(Spikes.begin() + NoBins / 2, Spikes.end(), 0);
+
+	std::uniform_int_distribution<uint32_t> LagDist(0, LagCount);
+	std::uniform_int_distribution<uint32_t> LeadDist(0, LeadCount);
+	*(HelperLag.end() - 1) = LagCount;
+	*(HelperLead.end() - 1) = LeadCount;
+
+	for (auto JittVec = SpikesMatrix.begin(), SMEnd = SpikesMatrix.end(); JittVec < SMEnd; ++JittVec)
+	{
+
+		for (; LagIt < (LagEnd - 1); ++LagIt)
+		{
+			*LagIt = LagDist(Generator);
+		}
+
+		for (; LeadIt < (LeadEnd - 1); ++LeadIt)
+		{
+			*LeadIt = LeadDist(Generator);
+		}
+
+		std::sort(HelperLag.begin(), HelperLag.end());
+		std::sort(HelperLead.begin(), HelperLead.end());
+
+		LagIt = HelperLag.begin() + 1;
+		LeadIt = HelperLead.begin() + 1;
+
+		for (auto JittLagIt = JittVec->begin(), JittLagEnd = JittVec->begin() + (NoBins / 2); JittLagIt < JittLagEnd; ++JittLagIt, ++LagIt)
+		{
+			*JittLagIt += *LagIt - *(LagIt - 1);
+		}
+
+		for (auto JittLeadIt = JittVec->begin() + (NoBins / 2), JittLeadEnd = JittVec->end(); JittLeadIt < JittLeadEnd; ++JittLeadIt, ++LeadIt)
+		{
+			*JittLeadIt += *LeadIt - *(LeadIt - 1);
+		}
+
+		LagIt = HelperLag.begin() + 1;
+		LeadIt = HelperLead.begin() + 1;
+	}
+
+
 }
 
 void Statistician::SpikeTrainBasicJitter(const std::vector<uint32_t>& reference, const std::vector<uint32_t>& target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count)
@@ -494,7 +578,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	//File for storing the sig data.
 	std::ofstream CorrFile("Stimulus" + std::to_string(Stimulus + 1) + ".txt");
-	//std::ofstream JitteredMatrixFile("JitteredMatrix" + std::to_string(Stimulus + 1) + ".txt");
+	std::ofstream JitteredMatrixFile("JitteredMatrix" + std::to_string(Stimulus + 1) + ".txt");
 
 	//Check if we want to exclude "zero lag" correlations.
 	int BinExcluded = 0;
@@ -545,7 +629,11 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 								break;
 
 							case INTERJITTER:
-								SpikeTrainIntervalJitter(*RefTrialTrain, *TarTrialTrain, SpikesCountCorr, SpikesCountResampled, CountCorr);
+								SpikeTrainCorr(*RefTrialTrain, *TarTrialTrain, SpikesCountCorr, CountCorr);
+								SpikeTrainIntervalJitter2(SpikesCountCorr, SpikesCountResampled);
+								//SpikeTrainIntervalJitter(*RefTrialTrain, *TarTrialTrain, SpikesCountCorr, SpikesCountResampled, CountCorr);
+								WriteToFileWorkerT(CorrFile, SpikesCountCorr); CorrFile << "\n";
+
 								break;
 
 							default:
@@ -616,8 +704,11 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 							BinVec < BinVecEnd;
 							++BinVec)
 						{
-							//WriteToFileWorkerT(JitteredMatrixFile, *BinVec);
-							//JitteredMatrixFile << "\n";
+							if (LPWVecit == LPWBands.cbegin())
+							{ 
+								//WriteToFileWorkerT(JitteredMatrixFile, *BinVec);
+								//JitteredMatrixFile << "\n";
+							}
 							for (auto LPWit = LPWVecit->cbegin(), UPWit = UPWVecit->cbegin(), End = LPWVecit->cend(), ResDatait = BinVec->cbegin();
 								LPWit < End; ++LPWit, ++UPWit, ++ResDatait)
 							{
@@ -654,6 +745,14 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 						GlobalBands.second = *UpperBand;
 
 					}
+
+
+					/*WriteToFileWorkerT(JitteredMatrixFile, LPWBand);
+					JitteredMatrixFile << "\n";
+					WriteToFileWorkerT(JitteredMatrixFile, UPWBand);
+					JitteredMatrixFile << "\n";
+					JitteredMatrixFile << GlobalBands.first<< "\n";
+					JitteredMatrixFile << GlobalBands.second << "\n";*/
 
 					////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
