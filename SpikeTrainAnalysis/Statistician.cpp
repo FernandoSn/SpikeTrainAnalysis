@@ -227,7 +227,7 @@ void Statistician::SpikeTrainJitter(const std::vector<uint32_t>& reference, cons
 	//std::normal_distribution<double> distribution(0,0.001);
 	
 	std::vector<uint32_t> JitteredTarget(target.size());
-	//std::ofstream DistFile("Dist.txt");
+	std::ofstream DistFile("Dist.txt");
 
 	for (auto Spikes = SpikesMatrix.begin(), SMEnd = SpikesMatrix.end(); Spikes < SMEnd; ++Spikes)
 	{
@@ -239,6 +239,8 @@ void Statistician::SpikeTrainJitter(const std::vector<uint32_t>& reference, cons
 		//std::sort(JitteredTarget.begin(), JitteredTarget.end());
 
 		SpikeTrainCorr(reference, JitteredTarget, *Spikes,Count);
+		//WriteToFileWorkerT(DistFile, *Spikes);
+		//DistFile << "\n";
 	}
 
 }
@@ -259,7 +261,7 @@ void Statistician::SpikeTrainJitterCopy(const std::vector<uint32_t>& reference, 
 	std::uniform_int_distribution<int> distribution(-150, 150);
 	//std::normal_distribution<double> distribution(0,0.001);
 
-	//std::ofstream DistFile("Dist.txt");
+	std::ofstream DistFile("Dist.txt");
 
 	for (auto Spikes = SpikesMatrix.begin(), SMEnd = SpikesMatrix.end(); Spikes < SMEnd; ++Spikes)
 	{
@@ -268,7 +270,12 @@ void Statistician::SpikeTrainJitterCopy(const std::vector<uint32_t>& reference, 
 		std::for_each(target.begin(), target.end(),
 			[this, &distribution](uint32_t& Spike) { Spike += distribution(Generator); });
 
+		//std::sort(target.begin(), target.end());
+
 		SpikeTrainCorr(reference, target, *Spikes, Count);
+
+		//WriteToFileWorkerT(DistFile, *Spikes);
+		//DistFile << "\n";
 	}
 
 }
@@ -430,7 +437,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 								break;
 
 							case JITTERING:
-								SpikeTrainJitter(*RefTrialTrain, *TarTrialTrain, SpikesCountResampled, CountRes); //Compute Corr Jittering method.
+								SpikeTrainJitterCopy(*RefTrialTrain, *TarTrialTrain, SpikesCountResampled, CountRes); //Compute Corr Jittering method.
 								break;
 
 							default:
