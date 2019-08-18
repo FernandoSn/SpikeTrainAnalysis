@@ -438,6 +438,138 @@ void Statistician::SpikeTrainIntervalJitter3(std::vector<unsigned int>& Spikes, 
 	}
 }
 
+void Statistician::SpikeTrainIntervalJitter4(const std::vector<uint32_t>& reference, const std::vector<uint32_t>& target, std::vector<unsigned int>& Spikes, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count)
+{
+
+	long long CurrentBinF;
+	long long CurrentBinL;
+	auto LBit = target.begin();
+	auto UBit = target.begin();
+
+	int HelperSize = NoBins / 2;
+
+	std::vector<uint32_t> HelperLag(HelperSize);
+	std::vector<uint32_t> HelperLead(HelperSize);
+
+	//std::cout << "Shuff: " << "\n";
+	//for(auto Spike = reference.begin(), LastSpike = reference.end(); Spike < LastSpike; ++Spike)
+	for (const uint32_t& Spike : reference)
+	{
+		CurrentBinF = (long long)Spike - Epoch; // Set the current bins for the lambda function.
+		CurrentBinL = CurrentBinF + BinSize;
+
+		std::uniform_int_distribution<uint32_t> LagDist(Spike - Epoch, Spike - 1);
+		std::uniform_int_distribution<uint32_t> LeadDist(Spike + 1, (long long)Spike + (long long)Epoch);
+
+
+		//Boundaries of the target spikes.
+
+		STALowerBoundT(LBit, target.end(), CurrentBinF);
+		STAUpperBoundT(UBit, target.end(), Spike + Epoch);
+
+		auto First = LBit;
+		auto Last = LBit;
+		STAUpperBoundTExc(Last, UBit, CurrentBinL);
+
+		//Ierators for Count Corr vec
+		auto Bin = Spikes.begin(), LastBin = Spikes.end();
+		auto LagIt = HelperLag.begin(), LeadIt = HelperLead.begin();
+		const auto LagEnd = HelperLag.end(), LeadEnd = HelperLead.end();
+
+
+		/////This loops are written this way to avoid counting zero lag correlations. They are implemented using pointer
+		// aritmethic with custom made functions. STA stands for Spike Train Analysis.
+
+		uint32_t BinCount;
+
+		for (; Bin < LastBin - (NoBins / 2) - 1; ++Bin, ++LagIt)
+		{
+			BinCount = (uint32_t)std::distance(First, Last);
+			*LagIt = BinCount;
+			*Bin += BinCount;
+
+			CurrentBinF = CurrentBinL;
+			CurrentBinL = CurrentBinF + BinSize;
+
+			First = Last;
+			STAUpperBoundTExc(Last, UBit, CurrentBinL);
+		}
+
+		BinCount = (uint32_t)std::distance(First, Last);
+		*LagIt = BinCount;
+		*Bin += BinCount;
+		CurrentBinF = CurrentBinL;
+		CurrentBinL = CurrentBinF + BinSize;
+
+		STALowerBoundTExc(First, UBit, CurrentBinF);
+		STAUpperBoundT(Last, UBit, CurrentBinL);
+
+		++Bin;
+
+		for (; Bin < LastBin; ++Bin, ++LeadIt)
+		{
+			BinCount = (uint32_t)std::distance(First, Last);
+			*LeadIt = BinCount;
+			*Bin += BinCount;
+			CurrentBinF = CurrentBinL;
+			CurrentBinL = CurrentBinF + BinSize;
+
+			First = Last;
+			STAUpperBoundT(Last, UBit, CurrentBinL);
+		}
+
+		LagIt = HelperLag.begin(), LeadIt = HelperLead.begin();
+		uint32_t LagCount = std::accumulate(LagIt, LagEnd, 0);
+		uint32_t LeadCount = std::accumulate(LeadIt, LeadEnd, 0);
+
+		//Fake RefSample is any element of the set {x:x>Epoch};
+		std::vector<uint32_t> FakeReference(1, Spike);
+		std::vector<uint32_t> FakeTarget((long long)LagCount + (long long)LeadCount);
+
+		for (auto JittVec = SpikesMatrix.begin(), SMEnd = SpikesMatrix.end(); JittVec < SMEnd; ++JittVec)
+		{
+			auto FTIt = FakeTarget.begin();
+
+
+			std::vector<uint32_t> Checker((long long)LagCount + (long long)LeadCount + 1L);
+			auto ChIt = Checker.begin();
+
+			for (auto FTLagEnd = FakeTarget.begin() + LagCount; FTIt < FTLagEnd; ++FTIt)
+			{
+				uint32_t LagSample = LagDist(Generator);
+
+				while (std::any_of(Checker.cbegin(), Checker.cend(), [&LagSample](const uint32_t& Ch) {return Ch == LagSample; }))
+				{
+					LagSample = LagDist(Generator);
+				}
+
+				*FTIt = LagSample;
+				*ChIt = LagSample;
+				ChIt++;
+			}
+
+			for (auto FTLeadEnd = FakeTarget.end(); FTIt < FTLeadEnd; ++FTIt)
+			{
+				//*FTIt = LeadDist(Generator);
+				uint32_t LeadSample = LeadDist(Generator);
+
+				while (std::any_of(Checker.cbegin(), Checker.cend(), [&LeadSample](const uint32_t& Ch) {return Ch == LeadSample; }))
+				{
+					LeadSample = LeadDist(Generator);
+				}
+
+				*FTIt = LeadSample;
+				*ChIt = LeadSample;
+				ChIt++;
+			}
+			std::sort(FakeTarget.begin(), FakeTarget.end());
+			unsigned int FakeCount = 0;
+			SpikeTrainCorr(FakeReference, FakeTarget, *JittVec, FakeCount);
+		}
+	}
+	Count += (unsigned int)reference.size();
+}
+
 void Statistician::SpikeTrainBasicJitter(const std::vector<uint32_t>& reference, const std::vector<uint32_t>& target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count)
 {
 	//Basic jitter or Center jitter. this is just a heuristic, doesnt work to test the actual null hypothesis.
@@ -664,9 +796,9 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 								break;
 
 							case INTERJITTER:
-								SpikeTrainCorr(*RefTrialTrain, *TarTrialTrain, SpikesCountCorr, CountCorr);
-								SpikeTrainIntervalJitter3(SpikesCountCorr, SpikesCountResampled,CountRes);
-								//SpikeTrainIntervalJitter(*RefTrialTrain, *TarTrialTrain, SpikesCountCorr, SpikesCountResampled, CountCorr);
+								//SpikeTrainCorr(*RefTrialTrain, *TarTrialTrain, SpikesCountCorr, CountCorr);
+								//SpikeTrainIntervalJitter3(SpikesCountCorr, SpikesCountResampled,CountRes);
+								SpikeTrainIntervalJitter4(*RefTrialTrain, *TarTrialTrain, SpikesCountCorr, SpikesCountResampled, CountCorr);
 								//WriteToFileWorkerT(CorrFile, SpikesCountCorr); CorrFile << "\n";
 
 								break;
