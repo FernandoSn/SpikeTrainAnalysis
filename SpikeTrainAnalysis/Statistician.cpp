@@ -176,7 +176,7 @@ void Statistician::SpikeTrainCorr(const std::vector<uint32_t>& reference, const 
 
 
 		/////This loops are written this way to avoid counting zero lag correlations. They are implemented using pointer
-		// aritmethic with custom made functions. STA stands for Spike Train Analysis.
+		// arithmetic with custom made functions. STA stands for Spike Train Analysis.
 
 		for (; Bin < LastBin - (NoBins / 2) - 1 ; ++Bin)
 		{
@@ -571,12 +571,29 @@ void Statistician::SpikeTrainIntervalJitter4(const std::vector<uint32_t>& refere
 
 void Statistician::SpikeTrainIntervalJitter5(const std::vector<unsigned int>& Spikes, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count)
 {
+
+	// This is the correct and possibly final implementation for the interval jittering method.
+	// This is the correct way of testing my hypothesis.
+
+	// H0 = All placements of spikes under JitterInterval are equally probable.
+	// That is, there is no temporal structure at a scale finer than JitterInterval.
+	// Remember that in order to test this H0 is very important to have the same spike counts in the resampled histograms,
+	// if we dont have the same counts, testing H0 is impossible and makes no sense.
+
+	// If JitterInterval is 150 that finer scale is 5 ms. If JitterInterval is 90, scale is 3 ms.
+	// That is because we are using samples not time stamps and our Sampling Frequency is 30kHz.
+	// I choose 3 ms for now because I notice some troughs and co-modulation in spikes that are preserved under 5 ms, 
+	// is common input possible at such finer scales? or is odor representation in PfCx that fast?
+
+	// References for interval jittering: Amarasingham(2011), Amarasingham(2012) and Platkiewicz(2011).
+
 	uint32_t JitterInterval = 90; //This is gonna be 150 because I want an interval of 5 ms.
 
 
 	uint32_t JitterCounts = (Epoch / JitterInterval) * 2;
 	std::vector<uint32_t> JitterIntC(JitterCounts);
 	auto JICIt = JitterIntC.begin();
+	const auto JICEnd = JitterIntC.end();
 	std::vector<std::uniform_int_distribution<uint32_t>> Distributions(JitterCounts);
 	auto DistsIt = Distributions.begin();
 
@@ -585,10 +602,21 @@ void Statistician::SpikeTrainIntervalJitter5(const std::vector<unsigned int>& Sp
 	uint32_t DistF = 0;
 	uint32_t DistL = DistF + JitterInterval;
 
-	for (auto SpikeCount = Spikes.begin(),SpikeEnd = Spikes.end(); SpikeCount < SpikeEnd; SpikeCount += IntervalConstant, ++JICIt, ++DistsIt)
+	auto SpikeCount = Spikes.begin();
+
+	for (; JICIt < (JICEnd - JitterCounts/2); SpikeCount += IntervalConstant, ++JICIt, ++DistsIt)
 	{
 		*JICIt = std::accumulate(SpikeCount, SpikeCount + IntervalConstant, 0);
-		*DistsIt = std::uniform_int_distribution<uint32_t>(DistF, DistL);
+		*DistsIt = std::uniform_int_distribution<uint32_t>(DistF, DistL - 1);
+
+		DistF = DistL;
+		DistL = DistF + JitterInterval;
+	}
+
+	for (; JICIt < JICEnd; SpikeCount += IntervalConstant, ++JICIt, ++DistsIt)
+	{
+		*JICIt = std::accumulate(SpikeCount, SpikeCount + IntervalConstant, 0);
+		*DistsIt = std::uniform_int_distribution<uint32_t>(DistF + 1, DistL);
 
 		DistF = DistL;
 		DistL = DistF + JitterInterval;
@@ -605,7 +633,7 @@ void Statistician::SpikeTrainIntervalJitter5(const std::vector<unsigned int>& Sp
 		DistsIt = Distributions.begin();
 		auto FTIt = FakeTarget.begin();
 
-		for (; JICIt < JitterIntC.end(); ++JICIt, ++DistsIt)
+		for (; JICIt < JICEnd; ++JICIt, ++DistsIt)
 		{
 			auto FTEnd = FTIt + *JICIt;
 			for (; FTIt < FTEnd; ++FTIt)
@@ -817,8 +845,8 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 				TarTrain < endTT
 				; ++TarTrain, TargetUnit++)
 			{
-				//if (TargetUnit == 49)
-				if(ReferenceUnit != TargetUnit)
+				if (TargetUnit == 49)
+				//if(ReferenceUnit != TargetUnit)
 				{
 					auto RefTrialTrain = RefTrain; //this is the downside of the way I parse the matlab data.
 					auto TarTrialTrain = TarTrain; //Aux vars to prevent modification of original vars.
