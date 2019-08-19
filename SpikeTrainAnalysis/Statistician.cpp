@@ -403,25 +403,18 @@ void Statistician::SpikeTrainIntervalJitter2(std::vector<unsigned int>& Spikes, 
 
 }
 
-void Statistician::SpikeTrainIntervalJitter3(std::vector<unsigned int>& Spikes, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count)
+void Statistician::SpikeTrainIntervalJitter3(const std::vector<unsigned int>& Spikes, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count)
 {
-	uint32_t JitterInterval = 150; //This is gonna be 150 because I want an interval of 5 ms.
-	uint32_t JitterCounts = (Epoch / JitterInterval) * 2;
-
-
 	uint32_t LagCount = std::accumulate(Spikes.begin(), Spikes.begin() + NoBins / 2, 0);
 	uint32_t LeadCount = std::accumulate(Spikes.begin() + NoBins / 2, Spikes.end(), 0);
 
-	std::vector<uint32_t> JitterIntC(JitterCounts);
-
 	//Fake RefSample is any element of the set {x:x>Epoch};
-	uint32_t FakeRefSample = 100000;
+	uint32_t FakeRefSample = 1000;
 	std::vector<uint32_t> FakeReference(1, FakeRefSample);
 	std::vector<uint32_t> FakeTarget((long long)LagCount + (long long)LeadCount);
 
 	std::uniform_int_distribution<uint32_t> LagDist(FakeRefSample - Epoch, FakeRefSample - 1);
 	std::uniform_int_distribution<uint32_t> LeadDist(FakeRefSample + 1, FakeRefSample + Epoch);
-
 
 
 
@@ -537,21 +530,21 @@ void Statistician::SpikeTrainIntervalJitter4(const std::vector<uint32_t>& refere
 			auto FTIt = FakeTarget.begin();
 
 
-			std::vector<uint32_t> Checker((long long)LagCount + (long long)LeadCount + 1L);
-			auto ChIt = Checker.begin();
+			//std::vector<uint32_t> Checker((long long)LagCount + (long long)LeadCount + 1L);
+			//auto ChIt = Checker.begin();
 
 			for (auto FTLagEnd = FakeTarget.begin() + LagCount; FTIt < FTLagEnd; ++FTIt)
 			{
 				uint32_t LagSample = LagDist(Generator);
 
-				while (std::any_of(Checker.cbegin(), Checker.cend(), [&LagSample](const uint32_t& Ch) {return Ch == LagSample; }))
+				/*while (std::any_of(Checker.cbegin(), Checker.cend(), [&LagSample](const uint32_t& Ch) {return Ch == LagSample; }))
 				{
 					LagSample = LagDist(Generator);
-				}
+				}*/
 
 				*FTIt = LagSample;
-				*ChIt = LagSample;
-				ChIt++;
+				//*ChIt = LagSample;
+				//ChIt++;
 			}
 
 			for (auto FTLeadEnd = FakeTarget.end(); FTIt < FTLeadEnd; ++FTIt)
@@ -559,14 +552,14 @@ void Statistician::SpikeTrainIntervalJitter4(const std::vector<uint32_t>& refere
 				//*FTIt = LeadDist(Generator);
 				uint32_t LeadSample = LeadDist(Generator);
 
-				while (std::any_of(Checker.cbegin(), Checker.cend(), [&LeadSample](const uint32_t& Ch) {return Ch == LeadSample; }))
+				/*while (std::any_of(Checker.cbegin(), Checker.cend(), [&LeadSample](const uint32_t& Ch) {return Ch == LeadSample; }))
 				{
 					LeadSample = LeadDist(Generator);
-				}
+				}*/
 
 				*FTIt = LeadSample;
-				*ChIt = LeadSample;
-				ChIt++;
+				//*ChIt = LeadSample;
+				//ChIt++;
 			}
 			std::sort(FakeTarget.begin(), FakeTarget.end());
 			unsigned int FakeCount = 0;
@@ -574,6 +567,55 @@ void Statistician::SpikeTrainIntervalJitter4(const std::vector<uint32_t>& refere
 		}
 	}
 	Count += (unsigned int)reference.size();
+}
+
+void Statistician::SpikeTrainIntervalJitter5(const std::vector<unsigned int>& Spikes, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count)
+{
+	uint32_t JitterInterval = 90; //This is gonna be 150 because I want an interval of 5 ms.
+
+
+	uint32_t JitterCounts = (Epoch / JitterInterval) * 2;
+	std::vector<uint32_t> JitterIntC(JitterCounts);
+	auto JICIt = JitterIntC.begin();
+	std::vector<std::uniform_int_distribution<uint32_t>> Distributions(JitterCounts);
+	auto DistsIt = Distributions.begin();
+
+	uint32_t IntervalConstant = (JitterInterval / BinSize);
+
+	uint32_t DistF = 0;
+	uint32_t DistL = DistF + JitterInterval;
+
+	for (auto SpikeCount = Spikes.begin(),SpikeEnd = Spikes.end(); SpikeCount < SpikeEnd; SpikeCount += IntervalConstant, ++JICIt, ++DistsIt)
+	{
+		*JICIt = std::accumulate(SpikeCount, SpikeCount + IntervalConstant, 0);
+		*DistsIt = std::uniform_int_distribution<uint32_t>(DistF, DistL);
+
+		DistF = DistL;
+		DistL = DistF + JitterInterval;
+	}
+
+	//Fake RefSample is any element of the set {x:x>Epoch};
+	uint32_t FakeRefSample = Epoch;
+	std::vector<uint32_t> FakeReference(1, FakeRefSample);
+	std::vector<uint32_t> FakeTarget(std::accumulate(JitterIntC.begin(), JitterIntC.end(), 0));
+
+	for (auto JittVec = SpikesMatrix.begin(), SMEnd = SpikesMatrix.end(); JittVec < SMEnd; ++JittVec)
+	{
+		JICIt = JitterIntC.begin();
+		DistsIt = Distributions.begin();
+		auto FTIt = FakeTarget.begin();
+
+		for (; JICIt < JitterIntC.end(); ++JICIt, ++DistsIt)
+		{
+			auto FTEnd = FTIt + *JICIt;
+			for (; FTIt < FTEnd; ++FTIt)
+			{
+				*FTIt = (*DistsIt)(Generator);
+			}
+		}
+		std::sort(FakeTarget.begin(), FakeTarget.end());
+		SpikeTrainCorr(FakeReference, FakeTarget, *JittVec, Count);
+	}
 }
 
 void Statistician::SpikeTrainBasicJitter(const std::vector<uint32_t>& reference, const std::vector<uint32_t>& target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count)
@@ -775,8 +817,8 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 				TarTrain < endTT
 				; ++TarTrain, TargetUnit++)
 			{
-				if (TargetUnit == 49)
-				//if(ReferenceUnit != TargetUnit)
+				//if (TargetUnit == 49)
+				if(ReferenceUnit != TargetUnit)
 				{
 					auto RefTrialTrain = RefTrain; //this is the downside of the way I parse the matlab data.
 					auto TarTrialTrain = TarTrain; //Aux vars to prevent modification of original vars.
@@ -802,9 +844,9 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 								break;
 
 							case INTERJITTER:
-								//SpikeTrainCorr(*RefTrialTrain, *TarTrialTrain, SpikesCountCorr, CountCorr);
-								//SpikeTrainIntervalJitter3(SpikesCountCorr, SpikesCountResampled,CountRes);
-								SpikeTrainIntervalJitter4(*RefTrialTrain, *TarTrialTrain, SpikesCountCorr, SpikesCountResampled, CountCorr);
+								SpikeTrainCorr(*RefTrialTrain, *TarTrialTrain, SpikesCountCorr, CountCorr);
+								SpikeTrainIntervalJitter5(SpikesCountCorr, SpikesCountResampled,CountRes);
+								//SpikeTrainIntervalJitter4(*RefTrialTrain, *TarTrialTrain, SpikesCountCorr, SpikesCountResampled, CountCorr);
 								//WriteToFileWorkerT(CorrFile, SpikesCountCorr); CorrFile << "\n";
 
 								break;
@@ -877,11 +919,11 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 							BinVec < BinVecEnd;
 							++BinVec)
 						{
-							if (LPWVecit == LPWBands.cbegin())
+							/*if (LPWVecit == LPWBands.cbegin())
 							{ 
-								//WriteToFileWorkerT(JitteredMatrixFile, *BinVec);
-								//JitteredMatrixFile << "\n";
-							}
+								WriteToFileWorkerT(JitteredMatrixFile, *BinVec);
+								JitteredMatrixFile << "\n";
+							}*/
 							for (auto LPWit = LPWVecit->cbegin(), UPWit = UPWVecit->cbegin(), End = LPWVecit->cend(), ResDatait = BinVec->cbegin();
 								LPWit < End; ++LPWit, ++UPWit, ++ResDatait)
 							{
