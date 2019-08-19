@@ -405,17 +405,23 @@ void Statistician::SpikeTrainIntervalJitter2(std::vector<unsigned int>& Spikes, 
 
 void Statistician::SpikeTrainIntervalJitter3(std::vector<unsigned int>& Spikes, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count)
 {
+	uint32_t JitterInterval = 150; //This is gonna be 150 because I want an interval of 5 ms.
+	uint32_t JitterCounts = (Epoch / JitterInterval) * 2;
+
 
 	uint32_t LagCount = std::accumulate(Spikes.begin(), Spikes.begin() + NoBins / 2, 0);
 	uint32_t LeadCount = std::accumulate(Spikes.begin() + NoBins / 2, Spikes.end(), 0);
 
+	std::vector<uint32_t> JitterIntC(JitterCounts);
+
 	//Fake RefSample is any element of the set {x:x>Epoch};
-	uint32_t FakeRefSample = 1000;
+	uint32_t FakeRefSample = 100000;
 	std::vector<uint32_t> FakeReference(1, FakeRefSample);
 	std::vector<uint32_t> FakeTarget((long long)LagCount + (long long)LeadCount);
 
 	std::uniform_int_distribution<uint32_t> LagDist(FakeRefSample - Epoch, FakeRefSample - 1);
 	std::uniform_int_distribution<uint32_t> LeadDist(FakeRefSample + 1, FakeRefSample + Epoch);
+
 
 
 
