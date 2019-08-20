@@ -21,7 +21,7 @@ int main()
 	bool IsSpontaneous = true; //For Spontanepus activity correlations. if this is false mutlithreading and PREX should be false.
 	bool MultiThreading = false; 
 	bool PREX = false; //Use first respiration, if its false its gonna use the Stimulus on and off.
-	std::string FileName("PfCxTotalInt3.dat"); //Name of the File that was created with Matlab code.
+	std::string FileName("AONtoPfCxTotalInt3.dat"); //Name of the File that was created with Matlab code.
 	int BinSize = 30; //Samples.1 ms binsize. 1 ms = 30 samples.
 	int Epoch = 900; //Samples. Epoch for the analysis. 150 samples = 5ms
 	uint32_t Interval = 30000; //Seconds. Interval used for statician ctor with PREX enabled.

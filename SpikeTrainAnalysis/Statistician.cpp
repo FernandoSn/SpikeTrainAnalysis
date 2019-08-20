@@ -490,7 +490,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 				; ++TarTrain, TargetUnit++)
 			{
 				//if (TargetUnit == 49)
-				if(ReferenceUnit < TargetUnit)
+				//if(ReferenceUnit < TargetUnit)
 				{
 					auto RefTrialTrain = RefTrain; //this is the downside of the way I parse the matlab data.
 					auto TarTrialTrain = TarTrain; //Aux vars to prevent modification of original vars.
