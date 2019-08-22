@@ -480,7 +480,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 		RefTrain < endRT
 		; ++RefTrain, ReferenceUnit++)
 	{
-		//if (ReferenceUnit == 37)
+		//if (ReferenceUnit == 1)
 		{
 			//Stimulus locked target spike train loop
 			unsigned short TargetUnit = 1;
@@ -489,7 +489,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 				TarTrain < endTT
 				; ++TarTrain, TargetUnit++)
 			{
-				//if (TargetUnit == 49)
+				//if (TargetUnit == 2)
 				if(ReferenceUnit < TargetUnit)
 				{
 					auto RefTrialTrain = RefTrain; //this is the downside of the way I parse the matlab data.
