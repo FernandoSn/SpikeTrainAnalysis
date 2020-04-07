@@ -6,6 +6,7 @@
 #include <atomic>
 #include <mutex>
 #include <iterator>
+#include <numeric>
 
 class Statistician
 {
