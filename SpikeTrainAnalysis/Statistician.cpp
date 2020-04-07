@@ -402,73 +402,76 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 			TarTrain < endTT
 			; ++TarTrain, TargetUnit++)
 		{
-			auto RefTrialTrain = RefTrain; //this is the downside of the way I parse the matlab data.
-			auto TarTrialTrain = TarTrain; //Aux vars to prevent modification of original vars.
-			unsigned int CountCorr = 0;
-			unsigned int CountRes = 0;
-
-			//Trial Loop/////////////////////////////////////////////////////////////////////////
-			for (int Trial = 0; Trial < Trials;
-				RefTrialTrain += UnitsRef, TarTrialTrain += UnitsTar, Trial++)
+			if (TargetUnit > ReferenceUnit)
 			{
-				if ((RefTrialTrain->size() != 0 && TarTrialTrain->size() != 0)) //Check if trains are not empty.
+				auto RefTrialTrain = RefTrain; //this is the downside of the way I parse the matlab data.
+				auto TarTrialTrain = TarTrain; //Aux vars to prevent modification of original vars.
+				unsigned int CountCorr = 0;
+				unsigned int CountRes = 0;
+
+				//Trial Loop/////////////////////////////////////////////////////////////////////////
+				for (int Trial = 0; Trial < Trials;
+					RefTrialTrain += UnitsRef, TarTrialTrain += UnitsTar, Trial++)
 				{
-					SpikeTrainCorr(*RefTrialTrain, *TarTrialTrain, SpikesCountCorr, CountCorr); //Compute Corr.
-
-					switch (ResamplingMethod)
+					if ((RefTrialTrain->size() != 0 && TarTrialTrain->size() != 0)) //Check if trains are not empty.
 					{
-					case SHUFFLING:
-						SpikeTrainShuffle(*RefTrialTrain, *TarTrialTrain, SpikesCountResampled, CountRes); //Compute Corr shuffling method.
-						break;
+						SpikeTrainCorr(*RefTrialTrain, *TarTrialTrain, SpikesCountCorr, CountCorr); //Compute Corr.
 
-					case JITTERING:
-						SpikeTrainJitter(*RefTrialTrain, *TarTrialTrain, SpikesCountResampled, CountRes); //Compute Corr Jittering method.
-						break;
+						switch (ResamplingMethod)
+						{
+						case SHUFFLING:
+							SpikeTrainShuffle(*RefTrialTrain, *TarTrialTrain, SpikesCountResampled, CountRes); //Compute Corr shuffling method.
+							break;
 
-					default:
-						SpikeTrainShuffle(*RefTrialTrain, *TarTrialTrain, SpikesCountResampled, CountRes);
-						break;
+						case JITTERING:
+							SpikeTrainJitter(*RefTrialTrain, *TarTrialTrain, SpikesCountResampled, CountRes); //Compute Corr Jittering method.
+							break;
+
+						default:
+							SpikeTrainShuffle(*RefTrialTrain, *TarTrialTrain, SpikesCountResampled, CountRes);
+							break;
+						}
 					}
 				}
-			}
-			/////////////////////////////////////////////////////////////////////////////////////
+				/////////////////////////////////////////////////////////////////////////////////////
 
 
 			
-			//Mean and STD of the matrix and vectors of the choosen resampling method.///////////
-			CountRes /= ResampledSets; //This needs to be divided into ResampledSets because that is the size of the Matrix, is not a vector anymore.
+				//Mean and STD of the matrix and vectors of the choosen resampling method.///////////
+				CountRes /= ResampledSets; //This needs to be divided into ResampledSets because that is the size of the Matrix, is not a vector anymore.
 
-			switch (StatTest)
-			{
-			case ZTEST:
-				if ((CountCorr != 0) && PrepZTest(SpikesSTDCount, SpikesCountResampled, SpikesSTDResampled, SpikesPResampled, CountRes))
+				switch (StatTest)
 				{
-					ZTestToFile(SpikesSTDResampled, SpikesCountCorr, SpikesPCorr,
-						SpikesPResampled, CountCorr, BinExcluded, ZorPVal, CorrFile, ReferenceUnit, TargetUnit, CountRes);
-				}
-				break;
+				case ZTEST:
+					if ((CountCorr != 0) && PrepZTest(SpikesSTDCount, SpikesCountResampled, SpikesSTDResampled, SpikesPResampled, CountRes))
+					{
+						ZTestToFile(SpikesSTDResampled, SpikesCountCorr, SpikesPCorr,
+							SpikesPResampled, CountCorr, BinExcluded, ZorPVal, CorrFile, ReferenceUnit, TargetUnit, CountRes);
+					}
+					break;
 
-			case PERMUTATIONTEST:
-				if ((CountCorr != 0) && PrepPermTest(SpikesSTDCount, SpikesCountResampled, LPWBand, UPWBand, GlobalBands,
-					ZorPVal, PValPlace, LPWBands, UPWBands))
-				{
-					PermTestToFile(GlobalBands, SpikesCountCorr, LPWBand, UPWBand, CountCorr, CorrFile, ReferenceUnit, TargetUnit);
+				case PERMUTATIONTEST:
+					if ((CountCorr != 0) && PrepPermTest(SpikesSTDCount, SpikesCountResampled, LPWBand, UPWBand, GlobalBands,
+						ZorPVal, PValPlace, LPWBands, UPWBands))
+					{
+						PermTestToFile(GlobalBands, SpikesCountCorr, LPWBand, UPWBand, CountCorr, CorrFile, ReferenceUnit, TargetUnit);
+					}
+					break;
 				}
-				break;
-			}
 	
-			//Reseting Count Vectors and Matrix;
-			std::fill(SpikesCountCorr.begin(), SpikesCountCorr.end(), 0);
+				//Reseting Count Vectors and Matrix;
+				std::fill(SpikesCountCorr.begin(), SpikesCountCorr.end(), 0);
 
-			std::for_each(SpikesCountResampled.begin(), SpikesCountResampled.end(),
-				[](std::vector<unsigned int>& BinVec)
-				{
-					std::fill(BinVec.begin(), BinVec.end(), 0);
-				});
+				std::for_each(SpikesCountResampled.begin(), SpikesCountResampled.end(),
+					[](std::vector<unsigned int>& BinVec)
+					{
+						std::fill(BinVec.begin(), BinVec.end(), 0);
+					});
 
-			mu.lock();
-			std::cout << "Stimulus " << Stimulus + 1 <<". Finished reference unit "<< ReferenceUnit << " vs target unit " << TargetUnit <<  ".\n";
-			mu.unlock();
+				mu.lock();
+				std::cout << "Stimulus " << Stimulus + 1 <<". Finished reference unit "<< ReferenceUnit << " vs target unit " << TargetUnit <<  ".\n";
+				mu.unlock();
+			}
 		}
 	}
 
