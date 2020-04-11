@@ -167,6 +167,7 @@ private:
 	std::mutex muVars;
 	std::mutex muios;
 	std::mutex muFile;
+	//std::mutex muGenerator;
 
 	std::ofstream CorrFile;
 	//std::ofstream JitteredMatrixFile("JitteredMatrix" + std::to_string(Stimulus + 1) + ".txt");

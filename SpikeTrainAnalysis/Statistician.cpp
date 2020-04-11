@@ -233,7 +233,7 @@ void Statistician::SpikeTrainIntervalJitter(const std::vector<unsigned int>& Spi
 
 	// NOTE: Interval jittering is a great resampling method for spontaneous activity, when measuring time-locked connectivity it should be used along with Trial shuffling.
 	//If the data breaks the sig bands of both tests we can assume a monosynaptic interaction that depends on the stimulus.
-
+	std::default_random_engine Generator(Rd());
 	uint32_t JitterInterval = 90; //This is gonna be 90 because I want an interval of 3 ms. 150 = 5 ms.
 
 
@@ -285,7 +285,9 @@ void Statistician::SpikeTrainIntervalJitter(const std::vector<unsigned int>& Spi
 			auto FTEnd = FTIt + *JICIt;
 			for (; FTIt < FTEnd; ++FTIt)
 			{
+				//muGenerator.lock();
 				*FTIt = (*DistsIt)(Generator);
+				//muGenerator.unlock();
 			}
 		}
 		std::sort(FakeTarget.begin(), FakeTarget.end());
@@ -803,33 +805,6 @@ void Statistician::MasterSpikeCrossCorrWorker(int ThreadNo, int ResampledSets, u
 
 	}
 
-	
-			
-	
-
-	/*if (CorrFile.bad())
-		std::cout << "bad";
-
-	else if (CorrFile.eof())
-		std::cout << "eof";
-
-	else if (CorrFile.fail())
-		std::cout << "other fail";
-
-	else if (CorrFile.good())
-	{
-		CorrFile.close();
-		muios.lock();
-		std::cout << "Output file was closed successfully\n";
-		muios.unlock();
-	}
-
-	if (CorrFile.rdstate() == (std::ios_base::failbit | std::ios_base::eofbit))
-	{
-		muios.lock();
-		std::cout << "stream state is eofbit\n";
-		muios.unlock();
-	}*/
 }
 
 void Statistician::CloseFiles()
