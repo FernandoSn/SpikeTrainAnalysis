@@ -21,7 +21,9 @@ Statistician::Statistician(std::string FileName, int BinSize, int Epoch, bool Is
 	Target(OdorEx.RDataFile(), OdorEx.GetUnitsTar(), OdorEx.GetTarSizePos(), OdorEx.GetTarTrainPos()),
 	StimLockedSpikesRef((long long)OdorEx.GetStimuli() * (long long)OdorEx.GetMagnitudes() * (long long)OdorEx.GetTrials() * (long long)OdorEx.GetUnitsRef()),
 	StimLockedSpikesTar((long long)OdorEx.GetStimuli() * (long long)OdorEx.GetMagnitudes() * (long long)OdorEx.GetTrials() * (long long)OdorEx.GetUnitsTar()),
-	Generator(Rd())
+	Generator(Rd()),
+	CorrFile("CorrFile.txt")
+
 {
 	if(IsSpontaneous)
 	{ 
@@ -46,7 +48,8 @@ Statistician::Statistician(std::string FileName, int BinSize, int Epoch, uint32_
 	Target(OdorEx.RDataFile(), OdorEx.GetUnitsTar(), OdorEx.GetTarSizePos(), OdorEx.GetTarTrainPos()),
 	StimLockedSpikesRef((long long)OdorEx.GetStimuli() * (long long)OdorEx.GetMagnitudes() * (long long)OdorEx.GetTrials() * (long long)OdorEx.GetUnitsRef()),
 	StimLockedSpikesTar((long long)OdorEx.GetStimuli() * (long long)OdorEx.GetMagnitudes() * (long long)OdorEx.GetTrials() * (long long)OdorEx.GetUnitsTar()),
-	Generator(Rd())
+	Generator(Rd()),
+	CorrFile("CorrFile.txt")
 {
 	SetPREXLockedSpikes(Interval);
 }
@@ -416,10 +419,10 @@ void Statistician::RunThreadPool(int ResampledSets, uint8_t ResamplingMethod, ui
 	auto CurrentThread = ThreadPool.begin();
 	auto EndThread = ThreadPool.end();
 	
-	for (int Stimulus = 0; CurrentThread < EndThread; ++CurrentThread, Stimulus++)
+	for (int ThreadNo = 0; CurrentThread < EndThread; ++CurrentThread, ThreadNo++)
 	{
 		*CurrentThread = std::async(std::launch::async, &Statistician::MasterSpikeCrossCorrWorker,
-			this, Stimulus, ResampledSets, ResamplingMethod, StatTest, ZorPVal, ExcZeroLag);
+			this, ThreadNo, ResampledSets, ResamplingMethod, StatTest, ZorPVal, ExcZeroLag);
 	}
 
 	while (true)
@@ -432,12 +435,38 @@ void Statistician::RunThreadPool(int ResampledSets, uint8_t ResamplingMethod, ui
 			{
 				CurrentThread->get();
 			}
+
+			if (CorrFile.bad())
+				std::cout << "bad";
+
+			else if (CorrFile.eof())
+				std::cout << "eof";
+
+			else if (CorrFile.fail())
+				std::cout << "other fail";
+
+			else if (CorrFile.good())
+			{
+				CorrFile.close();
+				muios.lock();
+				std::cout << "Output file was closed successfully\n";
+				muios.unlock();
+			}
+
+			if (CorrFile.rdstate() == (std::ios_base::failbit | std::ios_base::eofbit))
+			{
+				muios.lock();
+				std::cout << "stream state is eofbit\n";
+				muios.unlock();
+			}
+
+
 			return;
 		}
 	}
 }
 
-void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, uint8_t ResamplingMethod, uint8_t StatTest, double PVal, bool ExcZeroLag)
+void Statistician::MasterSpikeCrossCorrWorker(int ThreadNo, int ResampledSets, uint8_t ResamplingMethod, uint8_t StatTest, double PVal, bool ExcZeroLag)
 {
 
 	//NOTE: Im not convienced that STD matrices are the best way to deal with the problem. They are well allocated but anyway they may impact the performance,
@@ -446,22 +475,23 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 
 	muVars.lock();
 
+	
+
 	//Locked code to access common memory between threads
 	int UnitsRef = OdorEx.GetUnitsRef();
 	int UnitsTar = OdorEx.GetUnitsTar();
 	int Trials = OdorEx.GetTrials();
+
+
+	std::cout << "ThreadNo: " << ThreadNo << ", Ref: " << UnitsRef
+		<< ", Tar: " << UnitsTar << ", Trials: " << Trials << " ..... ";
 
 	std::vector<std::vector<uint32_t>> SLSR4Thread(StimLockedSpikesRef);
 	std::vector<std::vector<uint32_t>> SLST4Thread(StimLockedSpikesTar);
 
 	auto SLSRB = SLSR4Thread.cbegin();
 	auto SLSTB = SLST4Thread.cbegin();
-
-
-
-	std::cout << "Stimulus: " << Stimulus +1 << ", Ref: " << UnitsRef 
-		<< ", Tar: " << UnitsTar << ", Trials: " << Trials << "\n";
-
+	
 	//Put this thread to sleep just for debugging puposes.
 	//std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -477,12 +507,14 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 	std::vector<std::vector<uint32_t>> LPWBands(PValPlace, std::vector<uint32_t>(NoBins));
 	std::vector<std::vector<uint32_t>> UPWBands(PValPlace, std::vector<uint32_t>(NoBins));
 	std::pair<uint32_t, uint32_t> GlobalBands(0, 0);
+
+	std::cout << " Thread Ready " << "\n";
+
 	muVars.unlock();
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	//File for storing the sig data.
-	std::ofstream CorrFile("Stimulus" + std::to_string(Stimulus + 1) + ".txt");
-	std::ofstream JitteredMatrixFile("JitteredMatrix" + std::to_string(Stimulus + 1) + ".txt");
+	//std::ofstream CorrFile("Stimulus" + std::to_string(Stimulus + 1) + ".txt");
 
 	//Check if we want to exclude "zero lag" correlations.
 	int BinExcluded = 0;
@@ -490,72 +522,58 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 		BinExcluded = 1;
 	
 	//This apparently arbitrary numbers are the GlobalReferenceUnit and GlobalTargetUnit values before any modification. They
-	//should be the same as in Statistician.h except for PrevTarUnit which is GlobalTargetUnit + 1
+	//should be the same as in Statistician.h
 	int PrevRefUnit = 0;
 	int PrevTarUnit = 0;
 	int ReferenceUnit = 0;
 	int TargetUnit = 0;
 
-	auto RefTrain = SLSRB + ((__int64)Stimulus * UnitsRef); 
-	//auto endRT = RefTrain + UnitsRef;
+	auto RefTrain = SLSRB; //+ ((__int64)Stimulus * UnitsRef); 
 
-	auto TarTrain = SLSTB + ((__int64)Stimulus * UnitsTar);
-	//auto endTT = TarTrain + UnitsTar;
+	auto TarTrain = SLSTB; //+ ((__int64)Stimulus * UnitsTar);
 
 	//This loop is only inteded for Correlations whitin the same shank!!!!
 	while (true)
 	{
 		muVars.lock();
-		//if (!isFirstLoop)
-		//{
+		
+		if (GlobalReferenceUnit == (UnitsRef - 2)) //&& GlobalTargetUnit == (UnitsTar - 1))
+		{
+			muVars.unlock();
+			break;
+		}
+		else if (GlobalTargetUnit == (UnitsTar - 1))
+		{
+			GlobalReferenceUnit++;
+			GlobalTargetUnit = GlobalReferenceUnit + 1;
 
-			if (GlobalReferenceUnit == (UnitsRef - 2)) //&& GlobalTargetUnit == (UnitsTar - 1))
-			{
-				//std::cin.get();
-				muVars.unlock();
-				break;
-			}
-			else if (GlobalTargetUnit == (UnitsTar - 1))
-			{
-				GlobalReferenceUnit++;
-				GlobalTargetUnit = GlobalReferenceUnit + 1;
-
-				ReferenceUnit = GlobalReferenceUnit;
-				TargetUnit = GlobalTargetUnit;
+			ReferenceUnit = GlobalReferenceUnit;
+			TargetUnit = GlobalTargetUnit;
 
 
-				RefTrain += ((long long)ReferenceUnit - (long long)PrevRefUnit);
+			RefTrain += ((long long)ReferenceUnit - (long long)PrevRefUnit);
 				
-				TarTrain = SLSTB + ((__int64)Stimulus * UnitsTar) + GlobalTargetUnit;
+			TarTrain = SLSTB + GlobalTargetUnit;// ((__int64)Stimulus * UnitsTar)
 
 
-				PrevRefUnit = ReferenceUnit;
-				PrevTarUnit = TargetUnit;
+			PrevRefUnit = ReferenceUnit;
+			PrevTarUnit = TargetUnit;
 
-			}
-			else
-			{
-				GlobalTargetUnit++;
-				TargetUnit = GlobalTargetUnit;
+		}
+		else
+		{
+			GlobalTargetUnit++;
 
-				TarTrain += ((long long)TargetUnit - (long long)PrevTarUnit);
+			ReferenceUnit = GlobalReferenceUnit;
+			TargetUnit = GlobalTargetUnit;
 
-				/*std::cout << GlobalReferenceUnit << " : " << UnitsRef << GlobalTargetUnit
-					<< " : " << UnitsTar << " Exit" << Trials << "\n";*/
+			RefTrain += ((long long)ReferenceUnit - (long long)PrevRefUnit);
+			TarTrain += ((long long)TargetUnit - (long long)PrevTarUnit);
 
-				std::cout << " Diff: " << (long long)TargetUnit - (long long)PrevTarUnit << "\n";
-
-				//auto asd = *RefTrain;
-
-				//auto asde = *TarTrain;
-
-				PrevTarUnit = TargetUnit;
-			}
-		//}
-		//else
-		//{
-		//	isFirstLoop = false;
-		//}
+			PrevRefUnit = ReferenceUnit;
+			PrevTarUnit = TargetUnit;
+		}
+	
 		muVars.unlock();
 
 		//if (TargetUnit == 2)
@@ -800,7 +818,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 				});
 
 			muios.lock();
-			std::cout << "Stimulus " << Stimulus + 1 << ". Finished reference unit " << ReferenceUnit + 1
+			std::cout << "Thread " << ThreadNo + 1 << ". Finished reference unit " << ReferenceUnit + 1
 				<< " vs target unit " << TargetUnit + 1<< ".\n";
 			muios.unlock();
 		}
@@ -811,7 +829,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 			
 	
 
-	if (CorrFile.bad())
+	/*if (CorrFile.bad())
 		std::cout << "bad";
 
 	else if (CorrFile.eof())
@@ -833,7 +851,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, u
 		muios.lock();
 		std::cout << "stream state is eofbit\n";
 		muios.unlock();
-	}
+	}*/
 }
 
 

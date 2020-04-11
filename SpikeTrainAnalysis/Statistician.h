@@ -26,7 +26,7 @@ private:
 	void SpikeTrainBasicJitter(const std::vector<uint32_t>& reference, const std::vector<uint32_t>& target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count);
 	void SpikeTrainBasicCuJitter(const std::vector<uint32_t>& reference, std::vector<uint32_t> target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count);
 	void SpikeTrainShuffle(const std::vector<uint32_t>& reference, std::vector<uint32_t> target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count);
-	void MasterSpikeCrossCorrWorker(int Stimulus, int ResampledSets, uint8_t ResamplingMethod, uint8_t StatTest, double ZorPVal, bool ExcZeroLag);
+	void MasterSpikeCrossCorrWorker(int ThreadNo, int ResampledSets, uint8_t ResamplingMethod, uint8_t StatTest, double ZorPVal, bool ExcZeroLag);
 	
 	template <typename T>
 	void WriteToFileWorkerT(std::ofstream& CorrFile, std::vector<T>& CorrVec)
@@ -158,7 +158,6 @@ private:
 	std::atomic<int> NoBins;
 	std::atomic<int> GlobalReferenceUnit = 0;
 	std::atomic<int> GlobalTargetUnit = 0;
-	std::atomic<bool> isFirstLoop = true;
 
 	std::random_device Rd;
 	std::default_random_engine Generator;
@@ -167,6 +166,9 @@ private:
 	std::mutex muVars;
 	std::mutex muios;
 	std::mutex muFile;
+
+	std::ofstream CorrFile;
+	//std::ofstream JitteredMatrixFile("JitteredMatrix" + std::to_string(Stimulus + 1) + ".txt");
 
 
 };
