@@ -156,12 +156,18 @@ private:
 	std::atomic<int> BinSize;
 	std::atomic<int> Epoch;
 	std::atomic<int> NoBins;
+	std::atomic<int> GlobalReferenceUnit = 0;
+	std::atomic<int> GlobalTargetUnit = 0;
+	std::atomic<bool> isFirstLoop = true;
 
 	std::random_device Rd;
 	std::default_random_engine Generator;
 	//std::mt19937 Generator;
 
-	std::mutex mu;
+	std::mutex muVars;
+	std::mutex muios;
+	std::mutex muFile;
+
 
 };
 
