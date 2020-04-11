@@ -398,6 +398,7 @@ void Statistician::RunSingleThread(int ResampledSets, uint8_t ResamplingMethod, 
 	{
 		MasterSpikeCrossCorrWorker(Stimulus, ResampledSets, ResamplingMethod, StatTest, ZorPVal, ExcZeroLag);
 	}
+	CloseFiles();
 }
 
 void Statistician::RunThreadPool(int ResampledSets, uint8_t ResamplingMethod, uint8_t StatTest, double ZorPVal, bool ExcZeroLag)
@@ -436,30 +437,7 @@ void Statistician::RunThreadPool(int ResampledSets, uint8_t ResamplingMethod, ui
 				CurrentThread->get();
 			}
 
-			if (CorrFile.bad())
-				std::cout << "bad";
-
-			else if (CorrFile.eof())
-				std::cout << "eof";
-
-			else if (CorrFile.fail())
-				std::cout << "other fail";
-
-			else if (CorrFile.good())
-			{
-				CorrFile.close();
-				muios.lock();
-				std::cout << "Output file was closed successfully\n";
-				muios.unlock();
-			}
-
-			if (CorrFile.rdstate() == (std::ios_base::failbit | std::ios_base::eofbit))
-			{
-				muios.lock();
-				std::cout << "stream state is eofbit\n";
-				muios.unlock();
-			}
-
+			CloseFiles();
 
 			return;
 		}
@@ -852,6 +830,34 @@ void Statistician::MasterSpikeCrossCorrWorker(int ThreadNo, int ResampledSets, u
 		std::cout << "stream state is eofbit\n";
 		muios.unlock();
 	}*/
+}
+
+void Statistician::CloseFiles()
+{
+	if (CorrFile.bad())
+		std::cout << "bad";
+
+	else if (CorrFile.eof())
+		std::cout << "eof";
+
+	else if (CorrFile.fail())
+		std::cout << "other fail";
+
+	else if (CorrFile.good())
+	{
+		CorrFile.close();
+		muios.lock();
+		std::cout << "Output file was closed successfully\n";
+		muios.unlock();
+	}
+
+	if (CorrFile.rdstate() == (std::ios_base::failbit | std::ios_base::eofbit))
+	{
+		muios.lock();
+		std::cout << "stream state is eofbit\n";
+		muios.unlock();
+	}
+
 }
 
 
