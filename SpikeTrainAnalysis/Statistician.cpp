@@ -783,6 +783,8 @@ void Statistician::MasterSpikeCrossCorrWorker(int ThreadNo, int ResampledSets, u
 						CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << GoodAlpha << ", " << "\n";
 					}
 				}
+
+
 				muFile.unlock();
 			}
 

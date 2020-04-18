@@ -82,13 +82,15 @@ private:
 		int LeadCount = std::accumulate(LeadBeg, LeadEnd, 0);
 		int LagCount = std::accumulate(LagBeg, LagEnd, 0);
 
-		if ((LeadCount == 1 || LeadCount == 2) && ((LeadCount - *LeadBeg - *(LeadEnd - 1)) > 0))
+		//if ((LeadCount == 1 || LeadCount == 2) && ((LeadCount - *LeadBeg - *(LeadEnd - 1)) > 0))
+		if (LeadCount > 0 && LeadCount < 4)
 		{
 			SigArray[0] = true;
 			SigLeadPosition[0] = std::find(LeadBeg, LeadEnd, 1);
 		}
 
-		if ((LagCount == 1 || LagCount == 2) && ((LagCount - *LagBeg - *(LagEnd - 1)) > 0))
+		//if ((LagCount == 1 || LagCount == 2) && ((LagCount - *LagBeg - *(LagEnd - 1)) > 0))
+		if (LagCount > 0 && LagCount < 4)
 		{
 			SigArray[1] = true;
 			SigLagPosition[0] = std::find(std::make_reverse_iterator(LagEnd), std::make_reverse_iterator(LagBeg + 1), 1);
@@ -103,13 +105,15 @@ private:
 		LeadCount = std::accumulate(LeadBeg, LeadEnd, 0);
 		LagCount = std::accumulate(LagBeg, LagEnd, 0);
 
-		if ((LeadCount == 1 || LeadCount == 2) && ((LeadCount - *LeadBeg - *(LeadEnd - 1)) > 0))
+		//if ((LeadCount == 1 || LeadCount == 2) && ((LeadCount - *LeadBeg - *(LeadEnd - 1)) > 0))
+		if (LeadCount > 0 && LeadCount < 4)
 		{
 			SigArray[2] = true;
 			SigLeadPosition[1] = std::find(LeadBeg, LeadEnd, 1);
 		}
 
-		if ((LagCount == 1 || LagCount == 2) && ((LagCount - *LagBeg - *(LagEnd - 1)) > 0))
+		//if ((LagCount == 1 || LagCount == 2) && ((LagCount - *LagBeg - *(LagEnd - 1)) > 0))
+		if (LagCount > 0 && LagCount < 4)
 		{
 			SigArray[3] = true;
 			SigLagPosition[1] = std::find(std::make_reverse_iterator(LagEnd), std::make_reverse_iterator(LagBeg + 1), 1);
