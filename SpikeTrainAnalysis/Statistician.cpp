@@ -234,7 +234,7 @@ void Statistician::SpikeTrainIntervalJitter(const std::vector<unsigned int>& Spi
 	// NOTE: Interval jittering is a great resampling method for spontaneous activity, when measuring time-locked connectivity it should be used along with Trial shuffling.
 	//If the data breaks the sig bands of both tests we can assume a monosynaptic interaction that depends on the stimulus.
 	std::default_random_engine Generator(Rd());
-	uint32_t JitterInterval = 90; //This is gonna be 90 because I want an interval of 3 ms. 150 = 5 ms.
+	uint32_t JitterInterval = 90; //This is 90 because I want an interval of 3 ms. 150 = 5 ms.
 
 
 	uint32_t JitterCounts = (Epoch / JitterInterval) * 2;
@@ -412,6 +412,12 @@ void Statistician::RunThreadPool(int ResampledSets, uint8_t ResamplingMethod, ui
 	if (NoThreads < 4)
 	{
 		std::cout << "Multithreading not supported by the system "<< "\n";
+
+	}
+	else if (NoThreads > 16)
+	{
+
+		NoThreads = 16;
 
 	}
 

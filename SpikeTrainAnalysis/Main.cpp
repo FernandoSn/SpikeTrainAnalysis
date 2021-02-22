@@ -21,7 +21,14 @@ int main()
 	bool IsSpontaneous = true; //For Spontanepus activity correlations. if this is false mutlithreading and PREX should be false.
 	bool MultiThreading = true; 
 	bool PREX = false; //Use first respiration, if its false its gonna use the Stimulus on and off.
-	std::string FileName("pPCXNPX3D3Odor2.dat"); //Name of the File that was created with Matlab code.PfCxPreCNO
+
+	std::string FileName;
+
+	std::cout << "File name: ";
+
+	std::getline(std::cin, FileName);
+
+	//std::string FileName("pPCXNPX3D3Odor2.dat"); //Name of the File that was created with Matlab code.PfCxPreCNO
 	int BinSize = 30; //Samples.1 ms binsize. 1 ms = 30 samples.
 	int Epoch = 900; //Samples. Epoch for the analysis. 150 samples = 5ms. 900 samples = 30 ms.
 	uint32_t Interval = 30000; //Seconds. Interval used for statician ctor with PREX enabled.
@@ -63,12 +70,30 @@ int main()
 	}
 	else
 	{
-		std::cout << " Constructing with On and Off.\n";
+		//std::cout << " Constructing with On and Off.\n";
+
+		std::cout << " ResamplingMethod = Interval Jitter\n";
+		std::cout << " BinSize = 1ms\n";
+		std::cout << " Epoch(Jittering) = ±30ms\n";
+		std::cout << " Epoch(Permutation test) = ±5ms.\n";
+		std::cout << " Interval = 3ms.\n\n";
+
+
+
+
 		Statistician SpikeJuggler(FileName, BinSize, Epoch, IsSpontaneous);
 		if (MultiThreading)
 		{
-			std::cout << std::thread::hardware_concurrency() << " concurrent threads are supported.\n"
-				<< "You no. of stimuli (Odors) should be less or equal than this number\n";
+			std::cout << std::thread::hardware_concurrency() << " concurrent threads are supported.\n";
+
+			if (std::thread::hardware_concurrency() < 4)
+			{
+				std::cout << "Multithreading not supported by the system " << "\n";
+				std::cin.get();
+				return -1;
+			}
+
+			std::cout << "Press Enter to start " << "\n";
 			std::cin.get();
 			SpikeJuggler.RunThreadPool(ResampledSets, ResamplingMethod, StatTest,  ZThreshorPVal, ExcZeroLag);
 		}
