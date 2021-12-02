@@ -5,13 +5,11 @@
 #include <fstream>
 
 #include "Statistician.h"
-
-
 #include <numeric>
 #include <iterator>
 int main()
 {
-	//This is not professional coding. to my taste class are well designed maybe the thread pool or MasterCorr on Statistician
+	//This is not professional code. to my taste, the classes are well designed maybe the thread pool or MasterCorr on Statistician
 	//needs more work because a have a ton of code in one method but its acceptable.
 	//The part that is really bad is the user input, first to input different parameters you need to edit this code, you dont have IO.
 	//Second I didnt implement any exception system, this program doesnt have a way to detect semantic erros, specially in the statistics
@@ -21,13 +19,20 @@ int main()
 
 	//Statistician ctor interval is in sec, binsize and epoch is in ms
 	bool IsSpontaneous = true; //For Spontanepus activity correlations. if this is false mutlithreading and PREX should be false.
-	bool MultiThreading = false; 
+	bool MultiThreading = true; 
 	bool PREX = false; //Use first respiration, if its false its gonna use the Stimulus on and off.
-	std::string FileName("PfCxOdor.dat"); //Name of the File that was created with Matlab code.
-	int BinSize = 1; //Miliseconds.
-	int Epoch = 5; //Miliseconds. Epoch for the analysis.
-	double Interval = 1.0; //Seconds. Interval used for statician ctor with PREX enabled.
-	uint8_t ResamplingMethod = JITTERING; //Select the resampling Method.
+
+	std::string FileName;
+
+	std::cout << "File name: ";
+
+	std::getline(std::cin, FileName);
+
+	//std::string FileName("pPCXNPX3D3Odor2.dat"); //Name of the File that was created with Matlab code.PfCxPreCNO
+	int BinSize = 30; //Samples.1 ms binsize. 1 ms = 30 samples.
+	int Epoch = 900; //Samples. Epoch for the analysis. 150 samples = 5ms. 900 samples = 30 ms.
+	uint32_t Interval = 30000; //Seconds. Interval used for statician ctor with PREX enabled.
+	uint8_t ResamplingMethod = INTERJITTER; //Select the resampling Method.
 	uint8_t StatTest = PERMUTATIONTEST; //Select the Statistics. If PERMUTATIONTEST, ExcZeroLag is ignored.
 	int ResampledSets = 1000; //Recommended 100 for shuffle (Burgos-Robles,2017), 1000 for jittering (Fujisawa,2008)
 	double ZThreshorPVal = 0.01; //You should calculate this threshold with a two tail Z table. Divide 0.01 / NoBins and then look for the corresponding Z value.
@@ -65,19 +70,37 @@ int main()
 	}
 	else
 	{
-		std::cout << " Constructing with On and Off.\n";
+		//std::cout << " Constructing with On and Off.\n";
+
+		std::cout << " ResamplingMethod = Interval Jitter\n";
+		std::cout << " BinSize = 1ms\n";
+		std::cout << " Epoch(Jittering) = ±30ms\n";
+		std::cout << " Epoch(Permutation test) = ±5ms.\n";
+		std::cout << " Interval = 3ms.\n\n";
+
+
+
+
 		Statistician SpikeJuggler(FileName, BinSize, Epoch, IsSpontaneous);
 		if (MultiThreading)
 		{
-			std::cout << std::thread::hardware_concurrency() << " concurrent threads are supported.\n"
-				<< "You no. of stimuli (Odors) should be less or equal than this number\n";
+			std::cout << std::thread::hardware_concurrency() << " concurrent threads are supported.\n";
+
+			if (std::thread::hardware_concurrency() < 4)
+			{
+				std::cout << "Multithreading not supported by the system " << "\n";
+				std::cin.get();
+				return -1;
+			}
+
+			std::cout << "Press Enter to start " << "\n";
 			std::cin.get();
 			SpikeJuggler.RunThreadPool(ResampledSets, ResamplingMethod, StatTest,  ZThreshorPVal, ExcZeroLag);
 		}
 		else
 		{
 			std::cout << "Starting in a single thread.\n";
-			std::cin.get();
+			//std::cin.get();
 			SpikeJuggler.RunSingleThread(ResampledSets, ResamplingMethod, StatTest, ZThreshorPVal, ExcZeroLag);
 		}
 	}
