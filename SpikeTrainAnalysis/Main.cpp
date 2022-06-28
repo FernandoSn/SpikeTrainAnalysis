@@ -22,13 +22,13 @@ int main()
 	bool MultiThreading = true; 
 	bool PREX = false; //Use first respiration, if its false its gonna use the Stimulus on and off.
 
-	std::string FileName;
+	//std::string FileName;
 
-	std::cout << "File name: ";
+	//std::cout << "File name: ";
 
-	std::getline(std::cin, FileName);
+	//std::getline(std::cin, FileName);
 
-	//std::string FileName("pPCXNPX3D3Odor2.dat"); //Name of the File that was created with Matlab code.PfCxPreCNO
+	std::string FileName("DW-XI-8-1-PPC.dat"); //Name of the File that was created with Matlab code.PfCxPreCNO
 	int BinSize = 30; //Samples.1 ms binsize. 1 ms = 30 samples.
 	int Epoch = 900; //Samples. Epoch for the analysis. 150 samples = 5ms. 900 samples = 30 ms.
 	uint32_t Interval = 30000; //Seconds. Interval used for statician ctor with PREX enabled.
