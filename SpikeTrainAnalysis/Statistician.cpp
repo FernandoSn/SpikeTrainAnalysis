@@ -234,10 +234,11 @@ void Statistician::SpikeTrainIntervalJitter(const std::vector<unsigned int>& Spi
 	// NOTE: Interval jittering is a great resampling method for spontaneous activity, when measuring time-locked connectivity it should be used along with Trial shuffling.
 	//If the data breaks the sig bands of both tests we can assume a monosynaptic interaction that depends on the stimulus.
 	std::default_random_engine Generator(Rd());
-	uint32_t JitterInterval = 90; //This is 90 because I want an interval of 3 ms. 150 = 5 ms.
+	uint32_t JitterInterval = 15 * 30; //This is 90 because I want an interval of 3 ms. 150 = 5 ms.
 
 
-	uint32_t JitterCounts = (Epoch / JitterInterval) * 2;
+	//uint32_t JitterCounts = (Epoch / JitterInterval) * 2;
+	uint32_t JitterCounts = (Epoch * 2 ) / JitterInterval;
 	std::vector<uint32_t> JitterIntC(JitterCounts);
 	auto JICIt = JitterIntC.begin();
 	const auto JICEnd = JitterIntC.end();
@@ -485,6 +486,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int ThreadNo, int ResampledSets, u
 
 	std::vector<std::vector<unsigned int>> SpikesCountResampled(ResampledSets,std::vector<unsigned int>(NoBins)); // Good! Resampling Matrix, this is annoying but necessary to obtain the standard deviation.
 	std::vector<unsigned int> SpikesSTDCount(ResampledSets);
+	std::vector<unsigned int>AllSurrogateSpikeCounts(ResampledSets * NoBins);
 
 	//Vars when working with PermTest comp fujisawa, 2008.
 	std::vector<uint32_t> LPWBand(NoBins); //
@@ -612,7 +614,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int ThreadNo, int ResampledSets, u
 			//CountRes /= ResampledSets; //This needs to be divided into ResampledSets because that is the size of the Matrix, is not a vector anymore.
 			bool GoodData = true;
 			bool GoodAlpha = false;
-
+			auto AllCountIt = AllSurrogateSpikeCounts.begin();
 			for (int Bin = 0; Bin < NoBins; Bin++)
 			{
 				//Looping through the Matrix and filling the STDCount Vector.
@@ -620,9 +622,10 @@ void Statistician::MasterSpikeCrossCorrWorker(int ThreadNo, int ResampledSets, u
 				auto STDCountEnd = SpikesSTDCount.end();
 				for (auto BinVec = SpikesCountResampled.cbegin(), BinVecEnd = SpikesCountResampled.cend();
 					BinVec < BinVecEnd;
-					++BinVec, ++STDCount)
+					++BinVec, ++STDCount, ++AllCountIt)
 				{
 					*STDCount = *(BinVec->begin() + Bin);
+					*AllCountIt = *(BinVec->begin() + Bin);
 
 				}
 
@@ -637,7 +640,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int ThreadNo, int ResampledSets, u
 				std::sort(SpikesSTDCount.begin(), SpikesSTDCount.end());
 
 				//Filling the Pointwise bands Matrix.
-				int ProvPlace = PValPlace;
+				/*int ProvPlace = PValPlace;
 				for (auto LPWsit = LPWBands.begin(), UPWsit = UPWBands.begin(), End = LPWBands.end();
 					LPWsit < End; ++LPWsit, ++UPWsit)
 				{
@@ -646,7 +649,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int ThreadNo, int ResampledSets, u
 					*(UPWsit->begin() + Bin) = *(SpikesSTDCount.end() - ProvPlace);
 
 					ProvPlace--;
-				}
+				}*/
 
 				//Pointwise bands.
 				*(LPWBand.begin() + Bin) = *(SpikesSTDCount.begin() + PValPlace - 1); // Low Pval.
@@ -654,65 +657,13 @@ void Statistician::MasterSpikeCrossCorrWorker(int ThreadNo, int ResampledSets, u
 
 			}
 
-			//Loop for gettting the P of surrogate data sets that break the Pointwise bands at ANY point, that is the PVal of the global band that corresponds to the alpha of the Pairwise bands.
-			for (auto LPWVecit = LPWBands.cbegin(), UPWVecit = UPWBands.cbegin(), Ends = LPWBands.cend();
-				LPWVecit < Ends; ++LPWVecit, ++UPWVecit)
-			{
-				uint32_t PWCount = 0;
+			//Sortiing ALL spike counts and getting the global bands.
+			std::sort(AllSurrogateSpikeCounts.begin(), AllSurrogateSpikeCounts.end());
 
-				for (auto BinVec = SpikesCountResampled.begin(), BinVecEnd = SpikesCountResampled.end();
-					BinVec < BinVecEnd;
-					++BinVec)
-				{
-					/*if (LPWVecit == LPWBands.cbegin())
-					{ 
-						WriteToFileWorkerT(JitteredMatrixFile, *BinVec);
-						JitteredMatrixFile << "\n";
-					}*/
-					for (auto LPWit = LPWVecit->cbegin(), UPWit = UPWVecit->cbegin(), End = LPWVecit->cend(), ResDatait = BinVec->cbegin();
-						LPWit < End; ++LPWit, ++UPWit, ++ResDatait)
-					{
-						if (*ResDatait < *LPWit || *ResDatait > * UPWit)
-						{
-							PWCount += 1;
-							break;
-						}
-					}
-				}
+			GlobalBands.first = *(AllSurrogateSpikeCounts.begin() + PValPlace * 1 - 1);
+			GlobalBands.second = *(AllSurrogateSpikeCounts.end() - PValPlace * 1);
+			GoodAlpha = true;
 
-				if ((double)PWCount / (double)SpikesCountResampled.size() <= PVal / 2.0)
-				{
-					//Defining global bands.
-					auto LowBand = std::min_element(LPWVecit->begin(), LPWVecit->end());
-					auto UpperBand = std::max_element(UPWVecit->begin(), UPWVecit->end());
-
-					GlobalBands.first = *LowBand;
-					GlobalBands.second = *UpperBand;
-
-					GoodAlpha = true;
-					break;
-				}
-			}
-
-
-			if (!GoodAlpha)
-			{
-				//Defining global bands as the extremes in case the Pval is too low.
-				auto LowBand = std::min_element(LPWBands.rbegin()->begin(), LPWBands.rbegin()->end());
-				auto UpperBand = std::max_element(UPWBands.rbegin()->begin(), UPWBands.rbegin()->end());
-
-				GlobalBands.first = *LowBand;
-				GlobalBands.second = *UpperBand;
-
-			}
-
-
-			/*WriteToFileWorkerT(JitteredMatrixFile, LPWBand);
-			JitteredMatrixFile << "\n";
-			WriteToFileWorkerT(JitteredMatrixFile, UPWBand);
-			JitteredMatrixFile << "\n";
-			JitteredMatrixFile << GlobalBands.first<< "\n";
-			JitteredMatrixFile << GlobalBands.second << "\n";*/
 
 			////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
