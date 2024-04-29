@@ -73,6 +73,7 @@ private:
 		auto LagEnd = LeadBeg;
 		std::vector<bool>::iterator SigLeadPosition[2];
 		std::reverse_iterator<std::vector<bool>::iterator> SigLagPosition[2];
+		int maxSigBins = 4; //I used 4 normally.
 
 		//Excitatory Correlations
 
@@ -84,14 +85,14 @@ private:
 		int LagCount = std::accumulate(LagBeg, LagEnd, 0);
 
 		//if ((LeadCount == 1 || LeadCount == 2) && ((LeadCount - *LeadBeg - *(LeadEnd - 1)) > 0))
-		if (LeadCount > 0 && LeadCount < 4)
+		if (LeadCount > 0 && LeadCount < maxSigBins)
 		{
 			SigArray[0] = true;
 			SigLeadPosition[0] = std::find(LeadBeg, LeadEnd, 1);
 		}
 
 		//if ((LagCount == 1 || LagCount == 2) && ((LagCount - *LagBeg - *(LagEnd - 1)) > 0))
-		if (LagCount > 0 && LagCount < 4)
+		if (LagCount > 0 && LagCount < maxSigBins)
 		{
 			SigArray[1] = true;
 			SigLagPosition[0] = std::find(std::make_reverse_iterator(LagEnd), std::make_reverse_iterator(LagBeg + 1), 1);
@@ -107,14 +108,14 @@ private:
 		LagCount = std::accumulate(LagBeg, LagEnd, 0);
 
 		//if ((LeadCount == 1 || LeadCount == 2) && ((LeadCount - *LeadBeg - *(LeadEnd - 1)) > 0))
-		if (LeadCount > 0 && LeadCount < 4)
+		if (LeadCount > 0 && LeadCount < maxSigBins)
 		{
 			SigArray[2] = true;
 			SigLeadPosition[1] = std::find(LeadBeg, LeadEnd, 1);
 		}
 
 		//if ((LagCount == 1 || LagCount == 2) && ((LagCount - *LagBeg - *(LagEnd - 1)) > 0))
-		if (LagCount > 0 && LagCount < 4)
+		if (LagCount > 0 && LagCount < maxSigBins)
 		{
 			SigArray[3] = true;
 			SigLagPosition[1] = std::find(std::make_reverse_iterator(LagEnd), std::make_reverse_iterator(LagBeg + 1), 1);
