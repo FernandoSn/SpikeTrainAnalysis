@@ -487,6 +487,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int ThreadNo, int ResampledSets, u
 	std::vector<std::vector<unsigned int>> SpikesCountResampled(ResampledSets,std::vector<unsigned int>(NoBins)); // Good! Resampling Matrix, this is annoying but necessary to obtain the standard deviation.
 	std::vector<unsigned int> SpikesSTDCount(ResampledSets);
 	std::vector<unsigned int>AllSurrogateSpikeCounts(ResampledSets * NoBins);
+	//std::vector<float> MeanBands(NoBins);
 
 	//Vars when working with PermTest comp fujisawa, 2008.
 	std::vector<uint32_t> LPWBand(NoBins); //
@@ -566,6 +567,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int ThreadNo, int ResampledSets, u
 
 		//if (TargetUnit == 2)
 		if(ReferenceUnit < TargetUnit)
+		//if ((ReferenceUnit < TargetUnit) && (ReferenceUnit<16))
 		{
 			auto RefTrialTrain = RefTrain; //this is the downside of the way I parse the matlab data.
 			auto TarTrialTrain = TarTrain; //Aux vars to prevent modification of original vars.
@@ -615,6 +617,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int ThreadNo, int ResampledSets, u
 			bool GoodData = true;
 			bool GoodAlpha = false;
 			auto AllCountIt = AllSurrogateSpikeCounts.begin();
+			//auto MeanBandsIt = MeanBands.begin();
 			for (int Bin = 0; Bin < NoBins; Bin++)
 			{
 				//Looping through the Matrix and filling the STDCount Vector.
@@ -639,6 +642,9 @@ void Statistician::MasterSpikeCrossCorrWorker(int ThreadNo, int ResampledSets, u
 				//Sorting the Resampled data to get the points at the desire PVal
 				std::sort(SpikesSTDCount.begin(), SpikesSTDCount.end());
 
+				//*MeanBandsIt = float(std::accumulate(SpikesSTDCount.cbegin(), SpikesSTDCount.cend(), 0.0))/float(ResampledSets);
+				//++MeanBandsIt;
+				
 				//Filling the Pointwise bands Matrix.
 				/*int ProvPlace = PValPlace;
 				for (auto LPWsit = LPWBands.begin(), UPWsit = UPWBands.begin(), End = LPWBands.end();
@@ -676,6 +682,11 @@ void Statistician::MasterSpikeCrossCorrWorker(int ThreadNo, int ResampledSets, u
 				bool SigArray[4] = { false };
 
 				GetSignifcantCorr(SpikesCountCorr, SigArray, GlobalBands, LPWBand, UPWBand);
+				
+				/*SigArray[0] = true;
+				SigArray[1] = true;
+				SigArray[2] = true;
+				SigArray[3] = true;*/
 
 				muFile.lock();
 						
@@ -685,6 +696,8 @@ void Statistician::MasterSpikeCrossCorrWorker(int ThreadNo, int ResampledSets, u
 					WriteToFileWorkerT(CorrFile, SpikesCountCorr);
 					WriteToFileWorkerT(CorrFile, LPWBand);
 					WriteToFileWorkerT(CorrFile, UPWBand);
+					//WriteToFileWorkerT(CorrFile, MeanBands);
+					//WriteToFileWorkerT(CorrFile, MeanBands);
 					CorrFile << GlobalBands.first << ", " << GlobalBands.second << ", " << CountCorr << ", " << GoodAlpha << ", " << "\n";
 				}
 				else
