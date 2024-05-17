@@ -24,7 +24,7 @@
     <ClCompile Include="Statistician.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Main.cpp">
+    <ClCompile Include="MainTests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

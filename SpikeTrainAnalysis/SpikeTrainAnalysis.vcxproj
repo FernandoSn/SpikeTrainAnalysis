@@ -135,7 +135,7 @@
   <ItemGroup>
     <ClCompile Include="BrainRegion.cpp" />
     <ClCompile Include="Experiment.cpp" />
-    <ClCompile Include="Main.cpp" />
+    <ClCompile Include="MainTests.cpp" />
     <ClCompile Include="Statistician.cpp" />
   </ItemGroup>
   <ItemGroup>

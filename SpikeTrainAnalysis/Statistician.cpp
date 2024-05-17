@@ -296,6 +296,111 @@ void Statistician::SpikeTrainIntervalJitter(const std::vector<unsigned int>& Spi
 	}
 }
 
+void Statistician::SpikeTrainIntervalJitterSliding(const std::vector<unsigned int>& Spikes, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count)
+{
+	// This is the correct and possibly final implementation for the interval jittering method.
+	// Interval jittering provides good resampled data to test my H0.
+
+	// H0 = All placements of spikes under JitterInterval are equally probable.
+	// That is, there is no temporal structure at a scale finer than JitterInterval.
+	// Remember that in order to test this H0 is very important to have the same spike counts in the resampled histograms (this func does that),
+	// if we dont have the same counts, testing H0 is impossible and makes no sense.
+
+	// If JitterInterval is 150 that finer scale is 5 ms. If JitterInterval is 90, scale is 3 ms.
+	// That is because we are using samples not time stamps and our Sampling Frequency is 30kHz.
+	// I choose 3 ms for now because I notice some troughs and co-modulation in spikes that are preserved under 5 ms, 
+	// is common input possible at such finer scales? or is odor representation in PfCx that fast?
+
+	// References for interval jittering: Amarasingham(2011), Amarasingham(2012) and Platkiewicz(2017).
+
+	// NOTE: Interval jittering is a great resampling method for spontaneous activity, when measuring time-locked connectivity it should be used along with Trial shuffling.
+	//If the data breaks the sig bands of both tests we can assume a monosynaptic interaction that depends on the stimulus.
+	std::default_random_engine Generator(Rd());
+	uint32_t JitterInterval = 5 * 30; //This is 90 because I want an interval of 3 ms. 150 = 5 ms.
+	uint32_t IntervalConstant = (JitterInterval / BinSize); //Var for how wide is the jiitering epoch. How many bins should be used for jittering.
+
+
+	//uint32_t JitterCounts = (Epoch / JitterInterval) * 2;
+	//uint32_t JitterCounts = (Epoch * 2) / JitterInterval; //How many partitions shoud have the correlation train.
+	//std::vector<uint32_t> JitterIntC(JitterCounts); //Vector to count how many spikes happen for each jitter interval in the original correlation
+	//auto JICIt = JitterIntC.begin();
+	//const auto JICEnd = JitterIntC.end();
+	//std::vector<std::uniform_int_distribution<uint32_t>> Distributions(JitterCounts);
+	//auto DistsIt = Distributions.begin();
+	//uint32_t DistF = 0; //First
+	//uint32_t DistL = DistF + JitterInterval; //Last
+	//auto SpikeCount = Spikes.begin();
+
+
+
+	/////////////////////////////////////////////////////
+
+	uint32_t BinLocation = 0;
+	std::uniform_int_distribution<uint32_t> UniformDist(0,IntervalConstant-1);
+	for (auto SpikeCount = Spikes.begin(); SpikeCount < Spikes.end(); SpikeCount += IntervalConstant, BinLocation += IntervalConstant)
+	{
+		uint32_t counts = std::accumulate(SpikeCount, SpikeCount + IntervalConstant, 0);
+		
+
+		for (auto JittVec = SpikesMatrix.begin(); JittVec < SpikesMatrix.end(); ++JittVec)
+		{
+			auto JittVecIntervalIt = (JittVec->begin()) + BinLocation;
+
+			for (uint32_t i = 0; i < counts; i++)
+			{
+				*(JittVecIntervalIt + UniformDist(Generator)) = *(JittVecIntervalIt + UniformDist(Generator)) + 1;
+			}
+
+
+		}
+
+	}
+	///////////////////////////////////////////////////////////////////
+
+	//for (; JICIt < (JICEnd - JitterCounts / 2); SpikeCount += IntervalConstant, ++JICIt, ++DistsIt)
+	//{
+	//	*JICIt = std::accumulate(SpikeCount, SpikeCount + IntervalConstant, 0);
+	//	*DistsIt = std::uniform_int_distribution<uint32_t>(DistF, DistL - 1);
+
+	//	DistF = DistL;
+	//	DistL = DistF + JitterInterval;
+	//}
+
+	//for (; JICIt < JICEnd; SpikeCount += IntervalConstant, ++JICIt, ++DistsIt)
+	//{
+	//	*JICIt = std::accumulate(SpikeCount, SpikeCount + IntervalConstant, 0);
+	//	*DistsIt = std::uniform_int_distribution<uint32_t>(DistF + 1, DistL);
+
+	//	DistF = DistL;
+	//	DistL = DistF + JitterInterval;
+	//}
+
+	////Fake RefSample is any element of the set {x:x>Epoch};
+	//uint32_t FakeRefSample = Epoch;
+	//std::vector<uint32_t> FakeReference(1, FakeRefSample);
+	//std::vector<uint32_t> FakeTarget(std::accumulate(JitterIntC.begin(), JitterIntC.end(), 0));
+
+	//for (auto JittVec = SpikesMatrix.begin(), SMEnd = SpikesMatrix.end(); JittVec < SMEnd; ++JittVec)
+	//{
+	//	JICIt = JitterIntC.begin();
+	//	DistsIt = Distributions.begin();
+	//	auto FTIt = FakeTarget.begin();
+
+	//	for (; JICIt < JICEnd; ++JICIt, ++DistsIt)
+	//	{
+	//		auto FTEnd = FTIt + *JICIt;
+	//		for (; FTIt < FTEnd; ++FTIt)
+	//		{
+	//			//muGenerator.lock();
+	//			*FTIt = (*DistsIt)(Generator);
+	//			//muGenerator.unlock();
+	//		}
+	//	}
+	//	std::sort(FakeTarget.begin(), FakeTarget.end());
+	//	SpikeTrainCorr(FakeReference, FakeTarget, *JittVec, Count);
+	//}
+}
+
 void Statistician::SpikeTrainBasicJitter(const std::vector<uint32_t>& reference, const std::vector<uint32_t>& target, std::vector<std::vector<unsigned int>>& SpikesMatrix, unsigned int& Count)
 {
 	//Basic jitter or Center jitter. this is just a heuristic, doesnt work to test the actual null hypothesis.
