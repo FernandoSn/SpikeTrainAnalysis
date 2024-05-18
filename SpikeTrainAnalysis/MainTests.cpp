@@ -17,5 +17,7 @@ int main()
 		std::cout << *it << "\n";
 
 	}
+	std::cout << (from_vector.end()+1<from_vector.end()) << "\n";
+
 	std::cin.get();
 }
