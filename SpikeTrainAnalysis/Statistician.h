@@ -12,7 +12,7 @@ class Statistician
 {
 public:
 
-	Statistician(std::string FileName, int BinSize, int Epoch, bool IsSpontaneous);
+	Statistician(std::string FileName, int BinSize, int Epoch, bool IsSpontaneous, int JitterRes);
 	Statistician(std::string FileName, int BinSize, int Epoch, uint32_t Interval);
 	void RunThreadPool(int ResampledSets, uint8_t ResamplingMethod, uint8_t StatTest, double ZThresh, bool ExcZeroLag);
 	void RunSingleThread(int ResampledSets, uint8_t ResamplingMethod, uint8_t StatTest, double ZThresh, bool ExcZeroLag);
@@ -67,18 +67,21 @@ private:
 	void GetSignifcantCorr(const std::vector<T>& CountVec, bool* SigArray, const std::pair<T, T>& GlobalBands, const std::vector<T>& LPWBand, const std::vector<T>& UPWBand)
 	{
 
+		auto CountBeg = CountVec.cbegin() + JitterRes;
+		auto CountEnd = CountVec.cend() - (JitterRes + 1);
 		std::vector<bool> CountSigVec(NoBins);
 		auto LeadBeg = CountSigVec.end() - (CountSigVec.size() / 2);
-		auto LeadEnd = CountSigVec.end();
-		auto LagBeg = CountSigVec.begin();
+		auto LeadEnd = CountSigVec.end() - (JitterRes + 1);
+		auto LagBeg = CountSigVec.begin() + JitterRes;
 		auto LagEnd = LeadBeg;
 		std::vector<bool>::iterator SigLeadPosition[2];
 		std::reverse_iterator<std::vector<bool>::iterator> SigLagPosition[2];
-		int maxSigBins = 4; //I used 4 normally.
+		int maxSigBins = 60; //I used 4 normally.
+
 
 		//Excitatory Correlations
 
-		std::transform(CountVec.cbegin(), CountVec.cend(), CountSigVec.begin(), //Count the bins that cross the threshold!
+		std::transform(CountBeg, CountEnd, CountSigVec.begin() + JitterRes, //Count the bins that cross the threshold!
 			[&GlobalBands](const T& Spike) -> bool { return Spike > GlobalBands.second; });
 
 		
@@ -101,7 +104,7 @@ private:
 
 		//Inhibitory Correlations
 
-		std::transform(CountVec.cbegin(), CountVec.cend(), CountSigVec.begin(), //Count the bins that cross the threshold!
+		std::transform(CountBeg, CountEnd, CountSigVec.begin() + JitterRes, //Count the bins that cross the threshold!
 			[&GlobalBands](const T& Spike) -> bool { return Spike < GlobalBands.first; });
 
 
@@ -125,7 +128,7 @@ private:
 
 		//Verify that Lead Excitatory Correlation and Lead Inhibitory Correlation exists.
 		//Keeps the peak or trough that is closer to the reference spikes.
-		if (SigArray[2] && SigArray[0])
+		/*if (SigArray[2] && SigArray[0])
 		{
 			if (SigLeadPosition[0] < SigLeadPosition[1])
 			{
@@ -147,7 +150,7 @@ private:
 			{
 				SigArray[1] = false;
 			}
-		}
+		}*/
 
 
 	}
@@ -164,8 +167,9 @@ private:
 	std::atomic<int> BinSize;
 	std::atomic<int> Epoch;
 	std::atomic<int> NoBins;
+	std::atomic<int> JitterRes;
 	std::atomic<int> GlobalReferenceUnit = 0;
-	std::atomic<int> GlobalTargetUnit = 0;
+	std::atomic<int> GlobalTargetUnit = -1;
 
 	std::random_device Rd;
 	std::default_random_engine Generator;

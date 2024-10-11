@@ -28,9 +28,17 @@ int main()
 
 	//std::getline(std::cin, FileName);
 
-	std::string FileName("for_CS_MLI.dat"); //Name of the File that was created with Matlab code.PfCxPreCNO
+	//std::string FileName("for_PkC_cs-ss.dat"); //Diff (Cs vs all). 20ms jitter. Block excitation
+	//std::string FileName("for_MLI_1.dat"); //Diff (SpMLI vs SpPkC). 3ms jitter. Block excitation
+	//std::string FileName("for_MLIsyncOrInh_2or3.dat"); //Same (SpMLI). 3ms jitter. Block inhibition. SYNC
+	//std::string FileName("for_MLIsyncOrInh_2or3.dat"); //Same (SpMLI). 3ms jitter. Block excitation. MLI2 inh
+	//std::string FileName("for_CS_MLI.dat"); //Diff (Cs vs SpMLI). 10ms jitter. No block. Cs_MLI
+	std::string FileName("for_CS_PkC.dat"); //Diff (Cs vs SpMLI). 10ms jitter. No block. Cs_PkC
+	//std::string FileName("for_CS_MLI1.dat"); //One2One (Cs vs SpMLI). 10ms jitter. Block excitation. Cs_MLI1
+	//std::string FileName("test.dat"); //Name of the File that was created with Matlab code.
 	int BinSize = 30; //Samples.1 ms binsize. 1 ms = 30 samples.
 	int Epoch = 900; //Samples. Epoch for the analysis. 150 samples = 5ms. 900 samples = 30 ms.
+	int JitterResolution = 10;
 	uint32_t Interval = 30000; //Seconds. Interval used for statician ctor with PREX enabled.
 	uint8_t ResamplingMethod = INTERJITTER; //Select the resampling Method.
 	uint8_t StatTest = PERMUTATIONTEST; //Select the Statistics. If PERMUTATIONTEST, ExcZeroLag is ignored.
@@ -81,7 +89,7 @@ int main()
 
 
 
-		Statistician SpikeJuggler(FileName, BinSize, Epoch, IsSpontaneous);
+		Statistician SpikeJuggler(FileName, BinSize, Epoch, IsSpontaneous,JitterResolution);
 		if (MultiThreading)
 		{
 			std::cout << std::thread::hardware_concurrency() << " concurrent threads are supported.\n";

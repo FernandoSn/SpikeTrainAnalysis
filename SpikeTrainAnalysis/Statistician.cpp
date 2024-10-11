@@ -11,12 +11,13 @@
 
 
 
-Statistician::Statistician(std::string FileName, int BinSize, int Epoch, bool IsSpontaneous)
+Statistician::Statistician(std::string FileName, int BinSize, int Epoch, bool IsSpontaneous, int JitterRes)
 	:
 	BinSize(BinSize),
 	Epoch(Epoch),
 	NoBins((Epoch / BinSize) * 2),
 	OdorEx(FileName,IsSpontaneous),
+	JitterRes(JitterRes),
 	Reference(OdorEx.RDataFile(), OdorEx.GetUnitsRef(), OdorEx.GetRefSizePos(), OdorEx.GetRefTrainPos()),
 	Target(OdorEx.RDataFile(), OdorEx.GetUnitsTar(), OdorEx.GetTarSizePos(), OdorEx.GetTarTrainPos()),
 	StimLockedSpikesRef((long long)OdorEx.GetStimuli() * (long long)OdorEx.GetMagnitudes() * (long long)OdorEx.GetTrials() * (long long)OdorEx.GetUnitsRef()),
@@ -236,7 +237,7 @@ void Statistician::SpikeTrainIntervalJitter(const std::vector<unsigned int>& Spi
 	// NOTE: Interval jittering is a great resampling method for spontaneous activity, when measuring time-locked connectivity it should be used along with Trial shuffling.
 	//If the data breaks the sig bands of both tests we can assume a monosynaptic interaction that depends on the stimulus.
 	std::default_random_engine Generator(Rd());
-	uint32_t JitterInterval = 3 * 30; //This is 90 because I want an interval of 3 ms. 150 = 5 ms.
+	uint32_t JitterInterval = JitterRes * 30; //This is 90 because I want an interval of 3 ms. 150 = 5 ms.
 
 
 	//uint32_t JitterCounts = (Epoch / JitterInterval) * 2;
@@ -325,7 +326,7 @@ void Statistician::SpikeTrainIntervalJitterSliding(const std::vector<unsigned in
 	//If the data breaks the sig bands of both tests we can assume a monosynaptic interaction that depends on the stimulus.
 
 	std::default_random_engine Generator(Rd());
-	uint32_t IntervalConstant = 3; //Var for how wide is the jiitering epoch. How many bins should be used for jittering.
+	uint32_t IntervalConstant = (uint32_t)JitterRes; //Var for how wide is the jiitering epoch. How many bins should be used for jittering.
 	uint32_t JitterInterval = IntervalConstant * 30; //This is 90 because I want an interval of 3 ms. 150 = 5 ms.
 
 	uint32_t BinLocation; //Variable to update IntervalConstant epochs during iterations.
@@ -569,7 +570,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int ThreadNo, int ResampledSets, u
 	std::vector<std::vector<unsigned int>> SpikesCountResampled(ResampledSets,std::vector<unsigned int>(NoBins)); // Good! Resampling Matrix, this is annoying but necessary to obtain the standard deviation.
 	std::vector<unsigned int> SpikesSTDCount(ResampledSets);
 	std::vector<unsigned int>AllSurrogateSpikeCounts(ResampledSets * NoBins);
-	//std::vector<float> MeanBands(NoBins);
+	std::vector<float> MeanBands(NoBins);
 
 	//Vars when working with PermTest comp fujisawa, 2008.
 	std::vector<uint32_t> LPWBand(NoBins); //
@@ -608,7 +609,9 @@ void Statistician::MasterSpikeCrossCorrWorker(int ThreadNo, int ResampledSets, u
 	{
 		muVars.lock();
 		
-		if (GlobalReferenceUnit == (UnitsRef - 2)) //&& GlobalTargetUnit == (UnitsTar - 1))
+		//if (GlobalReferenceUnit == (UnitsRef - 2)) //Same Refs and Targets Original. Always have at least 3 units in the dataset
+		/////////if (GlobalReferenceUnit > (UnitsRef - 3) && GlobalReferenceUnit != 0) //Same Refs and Targets. This can be buggy under some situations
+		if (GlobalReferenceUnit == (UnitsRef - 1) && GlobalTargetUnit == (UnitsTar - 1)) //Diff Refs and Targets
 		{
 			muVars.unlock();
 			break;
@@ -616,7 +619,8 @@ void Statistician::MasterSpikeCrossCorrWorker(int ThreadNo, int ResampledSets, u
 		else if (GlobalTargetUnit == (UnitsTar - 1))
 		{
 			GlobalReferenceUnit++;
-			GlobalTargetUnit = GlobalReferenceUnit + 1;
+			//GlobalTargetUnit = GlobalReferenceUnit + 1; //Same Refs and Targets
+			GlobalTargetUnit = 0; //Diff Refs and Targets
 
 			ReferenceUnit = GlobalReferenceUnit;
 			TargetUnit = GlobalTargetUnit;
@@ -644,12 +648,13 @@ void Statistician::MasterSpikeCrossCorrWorker(int ThreadNo, int ResampledSets, u
 			PrevRefUnit = ReferenceUnit;
 			PrevTarUnit = TargetUnit;
 		}
-	
+
 		muVars.unlock();
 
 		//if (TargetUnit == 2)
-		if(ReferenceUnit < TargetUnit)
-		//if ((ReferenceUnit < TargetUnit) && (ReferenceUnit<18))
+		//if(ReferenceUnit < TargetUnit) //Same Refs and Targets
+		if(true) //Diff Refs and Targets
+		//if ((ReferenceUnit < TargetUnit) && (ReferenceUnit<256))
 		{
 			auto RefTrialTrain = RefTrain; //this is the downside of the way I parse the matlab data.
 			auto TarTrialTrain = TarTrain; //Aux vars to prevent modification of original vars.
@@ -699,7 +704,7 @@ void Statistician::MasterSpikeCrossCorrWorker(int ThreadNo, int ResampledSets, u
 			bool GoodData = true;
 			bool GoodAlpha = false;
 			auto AllCountIt = AllSurrogateSpikeCounts.begin();
-			//auto MeanBandsIt = MeanBands.begin();
+			auto MeanBandsIt = MeanBands.begin();
 			for (int Bin = 0; Bin < NoBins; Bin++)
 			{
 				//Looping through the Matrix and filling the STDCount Vector.
@@ -724,8 +729,8 @@ void Statistician::MasterSpikeCrossCorrWorker(int ThreadNo, int ResampledSets, u
 				//Sorting the Resampled data to get the points at the desire PVal
 				std::sort(SpikesSTDCount.begin(), SpikesSTDCount.end());
 
-				//*MeanBandsIt = float(std::accumulate(SpikesSTDCount.cbegin(), SpikesSTDCount.cend(), 0.0))/float(ResampledSets);
-				//++MeanBandsIt;
+				*MeanBandsIt = float(std::accumulate(SpikesSTDCount.cbegin(), SpikesSTDCount.cend(), 0.0))/float(ResampledSets);
+				++MeanBandsIt;
 				
 				//Filling the Pointwise bands Matrix.
 				/*int ProvPlace = PValPlace;
@@ -750,6 +755,8 @@ void Statistician::MasterSpikeCrossCorrWorker(int ThreadNo, int ResampledSets, u
 
 			GlobalBands.first = *(AllSurrogateSpikeCounts.begin() + PValPlace * 1 - 1);
 			GlobalBands.second = *(AllSurrogateSpikeCounts.end() - PValPlace * 1);
+			//GlobalBands.first = *(AllSurrogateSpikeCounts.begin());
+			//GlobalBands.second = *(AllSurrogateSpikeCounts.end() - 1);
 			GoodAlpha = true;
 
 
@@ -765,6 +772,10 @@ void Statistician::MasterSpikeCrossCorrWorker(int ThreadNo, int ResampledSets, u
 
 				GetSignifcantCorr(SpikesCountCorr, SigArray, GlobalBands, LPWBand, UPWBand);
 				
+				//SigArray[0] = false;
+				//SigArray[1] = false;
+				//SigArray[2] = false;
+				//SigArray[3] = false;
 				/*SigArray[0] = true;
 				SigArray[1] = true;
 				SigArray[2] = true;
